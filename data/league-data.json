@@ -77,5 +77,14 @@
       }
     }
   ],
-  "results": {}
+  "results": {
+    "bears-panthers": "away",
+    "ravens-colts": "away",
+    "falcons-steelers": "home",
+    "browns-jaguars": "home",
+    "buccaneers-bengals": "home",
+    "jets-titans": "away",
+    "saints-lions": "home",
+    "bills-texans": "away"
+  }
 }
