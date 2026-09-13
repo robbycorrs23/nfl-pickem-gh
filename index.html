@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NFL Week 1 Pick'em</title>
+<meta name="description" content="Make your NFL Week 1 picks and share them with the group chat." />
+<meta name="theme-color" content="#0a0e14" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%88%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<div class="app-shell">
+
+  <header class="app-header">
+    <p class="app-header__eyebrow">NFL Pick&rsquo;em</p>
+    <h1 class="app-header__title">Week 1<span class="app-header__title-accent">.</span></h1>
+    <p class="app-header__subtitle">Pick a winner for every game. Copy your picks into the chat.</p>
+  </header>
+
+  <main id="main" class="app-main">
+
+    <!-- ============ NAME ENTRY SCREEN ============ -->
+    <section id="name-screen" class="screen" aria-labelledby="name-screen-heading">
+      <div class="panel panel--centered">
+        <p class="panel__kicker">Step 1</p>
+        <h2 id="name-screen-heading" class="panel__heading">What&rsquo;s your name?</h2>
+        <p class="panel__body">We&rsquo;ll use it to label your picks when you share them with the group.</p>
+
+        <form id="name-form" class="name-form" novalidate>
+          <label class="field-label" for="name-input">Your name</label>
+          <input
+            class="field-input"
+            id="name-input"
+            name="name"
+            type="text"
+            placeholder="e.g. Rob"
+            autocomplete="given-name"
+            maxlength="24"
+            required
+          />
+          <p id="name-error" class="field-error" role="alert" hidden>Enter your name to continue.</p>
+
+          <button class="btn btn--primary btn--block" type="submit">
+            Let&rsquo;s Go
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ============ PICKS SCREEN ============ -->
+    <section id="picks-screen" class="screen" aria-labelledby="picks-screen-heading" hidden>
+      <div class="picks-header">
+        <div class="picks-header__greeting">
+          <p class="picks-header__hello">Hey, <span id="greeting-name">Friend</span> <span aria-hidden="true">👋</span></p>
+          <button class="link-btn" id="edit-name-btn" type="button">Not you? Edit name</button>
+        </div>
+        <h2 id="picks-screen-heading" class="picks-header__title">Make your Week 1 picks</h2>
+      </div>
+
+      <ul id="games-list" class="games-list" aria-label="Week 1 games"></ul>
+
+    </section>
+
+    <!-- ============ SUMMARY SCREEN ============ -->
+    <section id="summary-screen" class="screen" aria-labelledby="summary-screen-heading" hidden>
+      <div class="panel">
+        <p class="panel__kicker">All set</p>
+        <h2 id="summary-screen-heading" class="panel__heading">Your picks are locked in</h2>
+        <p class="panel__body">Copy this straight into the group chat.</p>
+
+        <pre id="summary-output" class="summary-output" tabindex="0" aria-label="Your generated picks message"></pre>
+
+        <div class="summary-actions">
+          <button class="btn btn--primary btn--block" id="copy-btn" type="button">
+            <span id="copy-btn-label">Copy Picks</span>
+          </button>
+          <div id="copy-confirm" class="copy-confirm" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="summary-secondary-actions">
+          <button class="btn btn--ghost" id="edit-picks-btn" type="button">Edit Picks</button>
+          <button class="btn btn--ghost btn--danger" id="reset-btn" type="button">Start Over</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ STICKY PICK PROGRESS / CTA BAR ============ -->
+  <div id="progress-bar-region" class="progress-region" hidden>
+    <div class="progress-region__inner">
+      <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="14" aria-valuenow="0" id="progress-track" aria-label="Picks completed">
+        <div id="progress-fill" class="progress-track__fill" style="width: 0%"></div>
+      </div>
+      <div class="progress-region__row">
+        <p class="progress-region__label" id="progress-label">0 / 14 Picks Made</p>
+        <button class="btn btn--primary btn--generate" id="generate-btn" type="button" disabled aria-disabled="true">
+          Generate My Picks
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p>Winner picks only &middot; no scores, no odds &middot; just bragging rights.</p>
+  </footer>
+
+</div>
+
+<script src="./js/games.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>

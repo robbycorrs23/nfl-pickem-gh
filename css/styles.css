@@ -1,0 +1,674 @@
+/* =========================================================
+   NFL Week 1 Pick'em — Styles
+   Mobile-first, dark, NFL-inspired.
+   ========================================================= */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #090c11;
+  --bg-gradient: radial-gradient(120% 100% at 50% -10%, #142234 0%, #090c11 55%);
+  --bg-elevated: #11161f;
+  --bg-card: #161c27;
+  --bg-card-hover: #1b2230;
+  --border: #262f3f;
+  --border-strong: #37435a;
+
+  /* Text */
+  --text-primary: #f5f7fa;
+  --text-secondary: #9aa7ba;
+  --text-tertiary: #6b7688;
+
+  /* Brand accents */
+  --accent: #22e08a;         /* field green — selected state */
+  --accent-ink: #052012;     /* dark text on top of accent */
+  --accent-soft: rgba(34, 224, 138, 0.14);
+  --gold: #ffb020;           /* locked-in / emphasis */
+  --danger: #ff5c5c;
+  --focus-ring: #6fb7ff;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-glow: 0 0 0 1px rgba(34, 224, 138, 0.5), 0 8px 20px rgba(34, 224, 138, 0.18);
+
+  /* Layout */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --max-width: 640px;
+  --progress-bar-height: 122px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ---------- Reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  background: var(--bg-gradient), var(--bg);
+  color: var(--text-primary);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, ul, li, fieldset, legend, pre {
+  margin: 0;
+  padding: 0;
+}
+
+fieldset {
+  border: none;
+  min-width: 0;
+}
+
+ul {
+  list-style: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input {
+  font: inherit;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---------- Accessibility helpers ---------- */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0 0 var(--radius-sm) 0;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- App shell ---------- */
+.app-shell {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 1.5rem 1.1rem calc(var(--progress-bar-height) + 2rem);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-header {
+  padding-bottom: 1.25rem;
+  animation: fade-in-down 0.5s ease both;
+}
+
+.app-header__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.app-header__title {
+  font-size: clamp(2.2rem, 8vw, 2.9rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-top: 0.15rem;
+}
+
+.app-header__title-accent {
+  color: var(--accent);
+}
+
+.app-header__subtitle {
+  color: var(--text-secondary);
+  margin-top: 0.35rem;
+  font-size: 0.98rem;
+  max-width: 32ch;
+}
+
+.app-footer {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
+  padding: 2rem 0 1rem;
+}
+
+/* ---------- Screens ---------- */
+.screen {
+  animation: fade-in-up 0.45s ease both;
+}
+
+.screen[hidden] {
+  display: none !important;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Panel (name screen / summary screen) ---------- */
+.panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 1.4rem;
+  box-shadow: var(--shadow-md);
+}
+
+.panel--centered {
+  margin-top: 1rem;
+}
+
+.panel__kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 0.4rem;
+}
+
+.panel__heading {
+  font-size: clamp(1.4rem, 6vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.panel__body {
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+}
+
+/* ---------- Name form ---------- */
+.name-form {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.field-input {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.95rem 1rem;
+  font-size: 1.05rem;
+  min-height: 3.1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.field-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.95rem 1.3rem;
+  min-height: 3.1rem;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn--block {
+  width: 100%;
+  margin-top: 0.9rem;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 18px rgba(34, 224, 138, 0.25);
+}
+
+.btn--primary:hover {
+  background: #3cec9e;
+}
+
+.btn--primary:disabled {
+  background: var(--bg-card);
+  color: var(--text-tertiary);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn--ghost {
+  background: transparent;
+  border: 1.5px solid var(--border-strong);
+  color: var(--text-primary);
+}
+
+.btn--ghost:hover {
+  background: var(--bg-card);
+}
+
+.btn--danger {
+  color: var(--danger);
+  border-color: rgba(255, 92, 92, 0.4);
+}
+
+.btn--danger:hover {
+  background: rgba(255, 92, 92, 0.08);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.link-btn:hover {
+  color: var(--text-primary);
+}
+
+/* ---------- Picks screen header ---------- */
+.picks-header {
+  padding: 0.25rem 0 1.1rem;
+}
+
+.picks-header__greeting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.picks-header__hello {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.picks-header__title {
+  margin-top: 0.4rem;
+  font-size: clamp(1.3rem, 5.5vw, 1.6rem);
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+
+/* ---------- Games list ---------- */
+.games-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.games-list > li {
+  animation: fade-in-up 0.4s ease both;
+}
+
+/* Stagger card entrance a bit */
+.games-list > li:nth-child(1) { animation-delay: 0.02s; }
+.games-list > li:nth-child(2) { animation-delay: 0.04s; }
+.games-list > li:nth-child(3) { animation-delay: 0.06s; }
+.games-list > li:nth-child(4) { animation-delay: 0.08s; }
+.games-list > li:nth-child(5) { animation-delay: 0.10s; }
+.games-list > li:nth-child(6) { animation-delay: 0.12s; }
+.games-list > li:nth-child(7) { animation-delay: 0.14s; }
+.games-list > li:nth-child(8) { animation-delay: 0.16s; }
+.games-list > li:nth-child(9) { animation-delay: 0.18s; }
+.games-list > li:nth-child(10) { animation-delay: 0.20s; }
+.games-list > li:nth-child(11) { animation-delay: 0.22s; }
+.games-list > li:nth-child(12) { animation-delay: 0.24s; }
+.games-list > li:nth-child(13) { animation-delay: 0.26s; }
+.games-list > li:nth-child(14) { animation-delay: 0.28s; }
+
+.game-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1rem 1.1rem;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease;
+}
+
+.game-card:has(.team-option__input:checked) {
+  border-color: var(--border-strong);
+}
+
+.game-card__legend {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  width: 100%;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.game-card__matchup {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.game-card__at {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.game-card__kickoff {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.game-card__teams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+/* ---------- Team option (radio button, styled as big tappable card) ---------- */
+.team-option {
+  position: relative;
+  display: block;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.team-option__input {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.team-option__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  text-align: center;
+  min-height: 5.25rem;
+  padding: 0.75rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-elevated);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.team-option:hover .team-option__content {
+  background: var(--bg-card-hover);
+  border-color: var(--text-tertiary);
+}
+
+.team-option:active .team-option__content {
+  transform: scale(0.97);
+}
+
+.team-option__input:focus-visible ~ .team-option__content {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.team-option__tag {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.team-option__name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.team-option__city {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.team-option__status {
+  display: none;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
+.team-option__check {
+  line-height: 1;
+}
+
+/* Checked state — not relying on color alone: border weight, background,
+   a "Selected" pill with checkmark, and bold text all change together. */
+.team-option__input:checked ~ .team-option__content {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
+.team-option__input:checked ~ .team-option__content .team-option__status {
+  display: inline-flex;
+}
+
+.team-option__input:checked ~ .team-option__content .team-option__name {
+  color: var(--text-primary);
+}
+
+/* ---------- Sticky progress / CTA bar ---------- */
+.progress-region {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: linear-gradient(180deg, rgba(9, 12, 17, 0) 0%, var(--bg-elevated) 22%);
+  padding-top: 1.5rem;
+}
+
+.progress-region[hidden] {
+  display: none !important;
+}
+
+.progress-region__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  padding: 0.85rem 1.1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.progress-track__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #59f0ae);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.progress-region__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  margin-top: 0.65rem;
+}
+
+.progress-region__label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.btn--generate {
+  flex: 1;
+  max-width: 15rem;
+}
+
+/* ---------- Summary screen ---------- */
+.summary-output {
+  margin-top: 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.summary-actions {
+  margin-top: 1.25rem;
+}
+
+.copy-confirm {
+  text-align: center;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.85rem;
+  min-height: 1.3rem;
+  margin-top: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.copy-confirm.is-visible {
+  opacity: 1;
+}
+
+.summary-secondary-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.summary-secondary-actions .btn {
+  flex: 1;
+}
+
+/* ---------- Small screens fine-tuning ---------- */
+@media (max-width: 360px) {
+  .team-option__content {
+    min-height: 4.6rem;
+  }
+}
+
+/* ---------- Larger screens ---------- */
+@media (min-width: 560px) {
+  .app-shell {
+    padding-top: 2.5rem;
+  }
+
+  .game-card {
+    padding: 1.25rem 1.25rem 1.4rem;
+  }
+
+  .team-option__content {
+    min-height: 6rem;
+  }
+}
