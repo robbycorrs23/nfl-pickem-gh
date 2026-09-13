@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Commissioner — NFL Week 1 Pick'em</title>
+<meta name="description" content="Admin tools for the Week 1 Pick'em league." />
+<meta name="theme-color" content="#0a0e14" />
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%88%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<div class="app-shell app-shell--no-sticky-bar">
+
+  <header class="app-header">
+    <p class="app-header__eyebrow">NFL Pick&rsquo;em</p>
+    <h1 class="app-header__title">Commissioner<span class="app-header__title-accent">.</span></h1>
+    <p class="app-header__subtitle">Import picks, mark results, publish the scoreboard.</p>
+    <nav class="top-nav" aria-label="Sections">
+      <a class="top-nav__link" href="./index.html">Make Picks</a>
+      <a class="top-nav__link" href="./scoreboard.html">Scoreboard</a>
+    </nav>
+  </header>
+
+  <main id="main" class="app-main">
+
+    <!-- ============ PASSWORD GATE ============ -->
+    <section id="auth-gate" class="screen" aria-labelledby="auth-gate-heading">
+      <div class="panel panel--centered">
+        <p class="panel__kicker">Restricted</p>
+        <h2 id="auth-gate-heading" class="panel__heading">Commissioner access</h2>
+        <p class="panel__body">Enter the admin password to continue. This is a light deterrent, not real security — don&rsquo;t use this page for anything sensitive.</p>
+
+        <form id="auth-form" class="name-form" novalidate>
+          <label class="field-label" for="password-input">Password</label>
+          <input
+            class="field-input"
+            id="password-input"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+          <p id="auth-error" class="field-error" role="alert" hidden>That password isn&rsquo;t right — try again.</p>
+          <button class="btn btn--primary btn--block" type="submit">Unlock</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN CONTENT ============ -->
+    <section id="admin-content" class="screen" aria-labelledby="admin-content-heading" hidden>
+
+      <div id="draft-banner" class="panel panel--warning" hidden>
+        <p class="panel__body">You have unpublished local changes on this device. <button class="link-btn" id="discard-draft-btn" type="button">Discard and reload from the live site</button></p>
+      </div>
+
+      <h2 id="admin-content-heading" class="visually-hidden">Commissioner tools</h2>
+
+      <!-- Token setup -->
+      <div class="panel">
+        <p class="panel__kicker">Step 1</p>
+        <h3 class="panel__heading panel__heading--sm">Connect to GitHub</h3>
+        <p class="panel__body">A token lets this page publish updates straight to the repo so every friend sees the same live scoreboard.</p>
+
+        <details class="help-details">
+          <summary>How do I get a token?</summary>
+          <ol class="help-steps">
+            <li>Go to <strong>github.com/settings/personal-access-tokens/new</strong> (fine-grained tokens).</li>
+            <li>Name it something like <code>nfl-pickem-admin</code>.</li>
+            <li>Under <strong>Repository access</strong>, choose <strong>Only select repositories</strong> and pick <code>robbycorrs23/nfl-pickem-gh</code>.</li>
+            <li>Under <strong>Permissions → Repository permissions</strong>, set <strong>Contents</strong> to <strong>Read and write</strong>.</li>
+            <li>Generate the token and paste it below. It's stored only in this browser (localStorage) and only ever sent to GitHub's API.</li>
+          </ol>
+        </details>
+
+        <label class="field-label" for="token-input">GitHub personal access token</label>
+        <input class="field-input" id="token-input" type="password" autocomplete="off" placeholder="github_pat_..." />
+        <div class="inline-actions">
+          <button class="btn btn--primary" id="save-token-btn" type="button">Save Token</button>
+          <button class="btn btn--ghost btn--danger" id="forget-token-btn" type="button">Forget Token</button>
+        </div>
+        <p id="token-status" class="field-hint">No token saved on this device.</p>
+      </div>
+
+      <!-- Import picks -->
+      <div class="panel">
+        <p class="panel__kicker">Step 2</p>
+        <h3 class="panel__heading panel__heading--sm">Import picks</h3>
+        <p class="panel__body">Paste one or more copied &ldquo;Generate My Picks&rdquo; messages below. Multiple friends' messages can be pasted together.</p>
+
+        <label class="field-label" for="paste-input">Pasted picks messages</label>
+        <textarea class="field-input field-textarea" id="paste-input" rows="6" placeholder="🏈 ROB'S WEEK 1 PICKS
+
+Bears over Panthers
+..."></textarea>
+        <button class="btn btn--primary btn--block" id="parse-btn" type="button">Parse Pasted Picks</button>
+
+        <div id="parsed-preview" class="parsed-preview"></div>
+      </div>
+
+      <!-- Staged picks -->
+      <div class="panel">
+        <h3 class="panel__heading panel__heading--sm">Staged picks <span id="staged-count-badge" class="count-badge">0</span></h3>
+        <p class="panel__body">These are the people currently on the board. Remove anyone added by mistake.</p>
+        <ul id="staged-picks-list" class="staged-picks-list"></ul>
+      </div>
+
+      <!-- Mark results -->
+      <div class="panel">
+        <p class="panel__kicker">Step 3</p>
+        <h3 class="panel__heading panel__heading--sm">Mark results</h3>
+        <p class="panel__body">Tap the winner for each game as results come in.</p>
+        <div id="results-list" class="results-list"></div>
+      </div>
+
+      <!-- Publish -->
+      <div class="panel panel--publish">
+        <p class="panel__kicker">Step 4</p>
+        <h3 class="panel__heading panel__heading--sm">Publish</h3>
+        <p class="panel__body">Pushes staged picks and results to the repo. The live scoreboard updates about a minute later once GitHub Pages rebuilds.</p>
+        <button class="btn btn--primary btn--block" id="publish-btn" type="button">Publish to Live Site</button>
+        <div id="publish-status" class="publish-status" role="status" aria-live="polite"></div>
+      </div>
+
+      <button class="link-btn" id="lock-btn" type="button">Lock commissioner page</button>
+
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <nav class="site-footer-nav" aria-label="Site">
+      <a href="./index.html">Make Picks</a>
+      <span aria-hidden="true">&middot;</span>
+      <a href="./scoreboard.html">Scoreboard</a>
+      <span aria-hidden="true">&middot;</span>
+      <a href="./admin.html" aria-current="page">Commissioner</a>
+    </nav>
+  </footer>
+
+</div>
+
+<script src="./js/games.js"></script>
+<script src="./js/league.js"></script>
+<script src="./js/admin.js"></script>
+</body>
+</html>
