@@ -85,6 +85,10 @@
     "buccaneers-bengals": "home",
     "jets-titans": "away",
     "saints-lions": "home",
-    "bills-texans": "away"
+    "bills-texans": "away",
+    "cardinals-chargers": "away",
+    "packers-vikings": "home",
+    "dolphins-raiders": "home",
+    "commanders-eagles": "home"
   }
 }
