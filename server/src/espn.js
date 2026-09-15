@@ -100,6 +100,36 @@ async function syncWeekScores(pool, week) {
 }
 
 /**
+ * Fetches a week's full schedule (teams + kickoff times) from ESPN, so the
+ * commissioner doesn't have to hand-type 14 matchups every week. Used by
+ * the admin page's "Auto-fill from ESPN" button — this only reads from
+ * ESPN, it never touches our database (the admin still reviews/edits the
+ * result and explicitly hits "Create Week" to save it).
+ */
+async function fetchWeekSchedule({ espnWeek, season, seasonType }) {
+  const events = await fetchEspnScoreboard({ espnWeek, season, seasonType });
+
+  return events
+    .map((event) => {
+      const competition = event?.competitions?.[0];
+      const competitors = competition?.competitors ?? [];
+      const home = competitors.find((c) => c.homeAway === "home");
+      const away = competitors.find((c) => c.homeAway === "away");
+      if (!competition || !home?.team || !away?.team) return null;
+
+      return {
+        awayCity: away.team.location || "",
+        awayName: away.team.name || away.team.shortDisplayName || "",
+        homeCity: home.team.location || "",
+        homeName: home.team.name || home.team.shortDisplayName || "",
+        kickoff: competition.date || event.date,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+}
+
+/**
  * Runs syncWeekScores for every week that still has at least one
  * non-manually-decided game. Called on a timer and via the admin's
  * "Sync scores now" button.
@@ -119,4 +149,4 @@ async function syncAllPendingWeeks(pool) {
   return summary;
 }
 
-module.exports = { syncWeekScores, syncAllPendingWeeks };
+module.exports = { syncWeekScores, syncAllPendingWeeks, fetchWeekSchedule };

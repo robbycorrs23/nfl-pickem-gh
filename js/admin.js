@@ -171,15 +171,36 @@
     `;
   }
 
-  let gameRowCount = 0;
-  function addGameRow() {
-    const div = document.createElement("div");
-    div.innerHTML = gameRowMarkup(gameRowCount);
-    newWeekGamesEl.appendChild(div.firstElementChild);
-    gameRowCount += 1;
+  // Converts an ISO datetime (any timezone) into the value a
+  // <input type="datetime-local"> expects, expressed in the browser's
+  // local timezone (matching what new Date(value).toISOString() assumes
+  // when the form is submitted).
+  function toDatetimeLocalValue(iso) {
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  addGameRowBtn.addEventListener("click", addGameRow);
+  let gameRowCount = 0;
+  function addGameRow(prefill) {
+    const div = document.createElement("div");
+    div.innerHTML = gameRowMarkup(gameRowCount);
+    const row = div.firstElementChild;
+    newWeekGamesEl.appendChild(row);
+    gameRowCount += 1;
+
+    if (prefill) {
+      row.querySelector('[data-field="awayCity"]').value = prefill.awayCity || "";
+      row.querySelector('[data-field="awayName"]').value = prefill.awayName || "";
+      row.querySelector('[data-field="homeCity"]').value = prefill.homeCity || "";
+      row.querySelector('[data-field="homeName"]').value = prefill.homeName || "";
+      if (prefill.kickoff) {
+        row.querySelector('[data-field="kickoff"]').value = toDatetimeLocalValue(prefill.kickoff);
+      }
+    }
+  }
+
+  addGameRowBtn.addEventListener("click", () => addGameRow());
   // Start with one blank row.
   addGameRow();
 
@@ -187,6 +208,32 @@
     const removeBtn = event.target.closest("[data-remove-row]");
     if (!removeBtn) return;
     removeBtn.closest("[data-game-row]").remove();
+  });
+
+  document.getElementById("autofill-espn-btn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("autofill-status");
+    const season = Number(document.getElementById("week-season-input").value);
+    const espnWeek = Number(document.getElementById("week-espn-input").value);
+
+    if (!season || !espnWeek) {
+      statusEl.textContent = "Fill in Season and NFL week # first.";
+      statusEl.className = "field-hint field-hint--warn";
+      return;
+    }
+
+    statusEl.textContent = "Fetching this week's real schedule from ESPN…";
+    statusEl.className = "field-hint";
+
+    try {
+      const { games } = await Api.getEspnSchedule(espnWeek, season, 2);
+      newWeekGamesEl.innerHTML = "";
+      gameRowCount = 0;
+      games.forEach((g) => addGameRow(g));
+      statusEl.textContent = `Filled in ${games.length} games from ESPN — review kickoff times/teams below, then hit Create Week.`;
+    } catch (err) {
+      statusEl.textContent = `Couldn't auto-fill: ${err.message}. You can still add games manually below.`;
+      statusEl.className = "field-hint field-hint--warn";
+    }
   });
 
   newWeekForm.addEventListener("submit", async (event) => {

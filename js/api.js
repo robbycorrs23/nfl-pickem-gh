@@ -83,6 +83,11 @@ const Api = (function () {
     logoutAdmin: clearAdminToken,
 
     // Admin writes (all require a saved admin token)
+    getEspnSchedule: (espnWeek, season, seasonType) =>
+      request(
+        `/weeks/espn-schedule?week=${encodeURIComponent(espnWeek)}&season=${encodeURIComponent(season)}&seasontype=${encodeURIComponent(seasonType || 2)}`,
+        { auth: true }
+      ),
     createWeek: (payload) => request("/weeks", { method: "POST", body: payload, auth: true }),
     activateWeek: (weekId) => request(`/weeks/${encodeURIComponent(weekId)}/activate`, { method: "POST", auth: true }),
     addGame: (weekId, game) =>

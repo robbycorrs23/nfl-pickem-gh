@@ -76,12 +76,15 @@
                 <input class="field-input" id="week-season-input" type="number" value="2026" required />
               </div>
               <div style="flex:1">
-                <label class="field-label" for="week-espn-input">NFL week # (for score sync)</label>
+                <label class="field-label" for="week-espn-input">NFL week # (for score sync + auto-fill)</label>
                 <input class="field-input" id="week-espn-input" type="number" placeholder="2" />
               </div>
             </div>
 
-            <p class="field-label" style="margin-top:1rem">Games</p>
+            <button class="btn btn--primary btn--block" type="button" id="autofill-espn-btn">Auto-fill Games From ESPN</button>
+            <p id="autofill-status" class="field-hint" role="status" aria-live="polite"></p>
+
+            <p class="field-label" style="margin-top:1rem">Games <span class="field-hint">(auto-filled above, or add/edit manually below)</span></p>
             <div id="new-week-games"></div>
             <button class="btn btn--ghost btn--block" type="button" id="add-game-row-btn">+ Add a game</button>
 

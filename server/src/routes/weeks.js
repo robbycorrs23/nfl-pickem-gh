@@ -1,7 +1,7 @@
 const express = require("express");
 const { pool } = require("../db");
 const { requireAdmin } = require("../auth");
-const { syncWeekScores } = require("../espn");
+const { syncWeekScores, fetchWeekSchedule } = require("../espn");
 
 const router = express.Router();
 
@@ -45,6 +45,31 @@ router.get("/", async (req, res, next) => {
         gameCount: Number(w.game_count),
       }))
     );
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Look up a week's real schedule from ESPN (teams + kickoff times), so the
+// commissioner can auto-fill the "create week" form instead of typing out
+// every matchup by hand. Read-only — doesn't touch our database. NOTE: this
+// must stay registered before GET /:weekId, or "espn-schedule" would be
+// swallowed as a weekId param.
+router.get("/espn-schedule", requireAdmin, async (req, res, next) => {
+  try {
+    const espnWeek = Number(req.query.week);
+    const season = Number(req.query.season);
+    const seasonType = req.query.seasontype ? Number(req.query.seasontype) : 2;
+
+    if (!espnWeek || !season) {
+      return res.status(400).json({ error: "week and season query params are required." });
+    }
+
+    const games = await fetchWeekSchedule({ espnWeek, season, seasonType });
+    if (!games.length) {
+      return res.status(404).json({ error: "ESPN has no schedule for that week/season yet." });
+    }
+    res.json({ games });
   } catch (err) {
     next(err);
   }
