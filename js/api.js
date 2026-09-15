@@ -89,7 +89,6 @@ const Api = (function () {
         { auth: true }
       ),
     createWeek: (payload) => request("/weeks", { method: "POST", body: payload, auth: true }),
-    activateWeek: (weekId) => request(`/weeks/${encodeURIComponent(weekId)}/activate`, { method: "POST", auth: true }),
     addGame: (weekId, game) =>
       request(`/weeks/${encodeURIComponent(weekId)}/games`, { method: "POST", body: game, auth: true }),
     deleteGame: (weekId, gameId) =>

@@ -27,6 +27,7 @@
 
   const weekTitle = document.getElementById("week-title");
   const picksWeekLabel = document.getElementById("picks-week-label");
+  const weekSelect = document.getElementById("week-select");
   const syncBanner = document.getElementById("sync-banner");
 
   const playerPicker = document.getElementById("player-picker");
@@ -63,6 +64,7 @@
   let picks = {}; // { [gameId]: 'home' | 'away' }
   let playerName = "";
   let knownPlayers = []; // roster names from the API, for the picker
+  let allWeeks = []; // every week that exists, for the "picking for" dropdown
 
   function storageKey(suffix) {
     return `nfl-pickem:${week.id}:${suffix}`;
@@ -228,11 +230,12 @@
     showScreen("loading-screen");
     try {
       const weeks = await Api.getWeeks();
-      const current = weeks.find((w) => w.isCurrent);
-      if (!current) {
+      if (!weeks.length) {
         showScreen("no-active-week-screen");
         return;
       }
+      allWeeks = weeks;
+      const current = weeks.find((w) => w.isCurrent) || weeks[weeks.length - 1];
 
       const [detail, players] = await Promise.all([Api.getWeek(current.id), Api.getPlayers()]);
       week = detail.week;
@@ -241,6 +244,7 @@
 
       weekTitle.innerHTML = `${escapeHtml(week.label)}<span class="app-header__title-accent">.</span>`;
       picksWeekLabel.textContent = week.label;
+      renderWeekSelect();
 
       loadDraft();
 
@@ -274,6 +278,53 @@
   }
 
   retryBtn.addEventListener("click", boot);
+
+  /* ---------------------------------------------------------
+     Week switcher — pick ahead for a future week, or revisit a past one
+     --------------------------------------------------------- */
+
+  function renderWeekSelect() {
+    weekSelect.innerHTML = allWeeks
+      .map(
+        (w) => `<option value="${w.id}">${escapeHtml(w.label)}${w.isCurrent ? " (current)" : ""}</option>`
+      )
+      .join("");
+    weekSelect.value = week.id;
+  }
+
+  async function switchWeek(weekId) {
+    if (!weekId || weekId === week.id) return;
+    const statusEl = document.getElementById("week-select-status");
+    statusEl.textContent = "";
+
+    try {
+      const detail = await Api.getWeek(weekId);
+      week = detail.week;
+      games = detail.games;
+
+      weekTitle.innerHTML = `${escapeHtml(week.label)}<span class="app-header__title-accent">.</span>`;
+      picksWeekLabel.textContent = week.label;
+
+      loadDraft(); // re-reads localStorage, now namespaced under the new week.id
+
+      if (playerName && !Object.keys(picks).length) {
+        const existing = detail.picks.find(
+          (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+        );
+        if (existing) picks = { ...existing.picks };
+      }
+
+      buildGamesList();
+      updateProgress();
+      weekSelect.value = week.id;
+    } catch (err) {
+      statusEl.textContent = `Couldn't switch weeks: ${err.message}`;
+      statusEl.className = "field-hint field-hint--warn";
+      weekSelect.value = week.id; // snap back to whatever's actually loaded
+    }
+  }
+
+  weekSelect.addEventListener("change", () => switchWeek(weekSelect.value));
 
   /* ---------------------------------------------------------
      Name screen: pick from the roster, or add a new name

@@ -142,22 +142,11 @@
         <li class="staged-picks-list__item">
           <span class="staged-picks-list__name">${escapeHtml(w.label)}</span>
           <span class="staged-picks-list__count">${w.gameCount} games</span>
-          ${
-            w.isCurrent
-              ? `<span class="count-badge">current</span>`
-              : `<button class="link-btn" type="button" data-activate-week="${w.id}">Activate</button>`
-          }
+          ${w.isCurrent ? `<span class="count-badge">current</span>` : ""}
         </li>
       `
       )
       .join("");
-
-    weeksListEl.querySelectorAll("[data-activate-week]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        await Api.activateWeek(btn.dataset.activateWeek);
-        await loadWeeks();
-      });
-    });
   }
 
   workingWeekSelect.addEventListener("change", async () => {

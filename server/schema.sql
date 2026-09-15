@@ -7,11 +7,15 @@ CREATE TABLE IF NOT EXISTS weeks (
   id          TEXT PRIMARY KEY,             -- e.g. 'week1'
   label       TEXT NOT NULL,                -- e.g. 'Week 1'
   season      INTEGER NOT NULL,             -- e.g. 2026
-  espn_week   INTEGER,                      -- NFL week number for ESPN score sync
+  espn_week   INTEGER,                      -- NFL week number for ESPN score sync + auto-provisioning
   espn_seasontype INTEGER NOT NULL DEFAULT 2, -- 1=pre, 2=regular, 3=post
-  is_current  BOOLEAN NOT NULL DEFAULT false, -- the week friends currently pick
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- "Current" used to be a manually-toggled flag; it's now always computed
+-- live from kickoff times (see server/src/weekAuto.js), so this column is
+-- dead weight. Drop it if it's still around from an older deploy.
+ALTER TABLE weeks DROP COLUMN IF EXISTS is_current;
 
 CREATE TABLE IF NOT EXISTS games (
   id            TEXT PRIMARY KEY,           -- e.g. 'week1__bears-panthers'

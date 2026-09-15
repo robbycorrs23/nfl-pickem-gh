@@ -57,12 +57,13 @@
       <!-- Weeks -->
       <div class="panel">
         <p class="panel__kicker">Weeks</p>
-        <h3 class="panel__heading panel__heading--sm">Manage weeks</h3>
-        <p class="panel__body">Activate the week friends should be picking right now. Old weeks stay fully archived and viewable on the scoreboard.</p>
+        <h3 class="panel__heading panel__heading--sm">Weeks</h3>
+        <p class="panel__body">Weeks 1&ndash;18 are pre-filled from ESPN's schedule automatically, and which one is "current" is computed from kickoff times &mdash; no activation needed. Friends can also pick ahead for a future week via the dropdown on the pick&rsquo;em page.</p>
         <ul id="weeks-list" class="staged-picks-list"></ul>
 
         <details class="help-details">
-          <summary>+ Create a new week</summary>
+          <summary>Advanced: manually add/fix a week</summary>
+          <p class="field-hint">Rarely needed &mdash; mainly for postseason weeks or fixing a matchup ESPN got wrong.</p>
           <form id="new-week-form" class="name-form">
             <label class="field-label" for="week-id-input">Week id (short, no spaces)</label>
             <input class="field-input" id="week-id-input" type="text" placeholder="week2" required />

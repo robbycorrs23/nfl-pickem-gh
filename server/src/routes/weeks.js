@@ -2,15 +2,9 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAdmin } = require("../auth");
 const { syncWeekScores, fetchWeekSchedule } = require("../espn");
+const { computeCurrentWeekId, slugify } = require("../weekAuto");
 
 const router = express.Router();
-
-function slugify(str) {
-  return String(str)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 function gameRowToJson(g) {
   return {
@@ -27,21 +21,26 @@ function gameRowToJson(g) {
 // Public reads
 // ---------------------------------------------------------------
 
-// List all weeks (for the scoreboard's week switcher).
+// List all weeks (for the scoreboard's week switcher and the pick'em
+// page's week dropdown). "Current" is computed live from kickoff times —
+// see server/src/weekAuto.js — not a stored flag.
 router.get("/", async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT w.*,
-              (SELECT count(*) FROM games g WHERE g.week_id = w.id) AS game_count
-       FROM weeks w ORDER BY w.created_at ASC`
-    );
+    const [{ rows }, currentWeekId] = await Promise.all([
+      pool.query(
+        `SELECT w.*,
+                (SELECT count(*) FROM games g WHERE g.week_id = w.id) AS game_count
+         FROM weeks w ORDER BY w.created_at ASC`
+      ),
+      computeCurrentWeekId(pool),
+    ]);
     res.json(
       rows.map((w) => ({
         id: w.id,
         label: w.label,
         season: w.season,
         espnWeek: w.espn_week,
-        isCurrent: w.is_current,
+        isCurrent: w.id === currentWeekId,
         gameCount: Number(w.game_count),
       }))
     );
@@ -83,15 +82,14 @@ router.get("/:weekId", async (req, res, next) => {
     if (!weekRes.rows.length) return res.status(404).json({ error: "Week not found." });
     const week = weekRes.rows[0];
 
-    const gamesRes = await pool.query(
-      "SELECT * FROM games WHERE week_id = $1 ORDER BY kickoff ASC",
-      [weekId]
-    );
-
-    const picksRes = await pool.query(
-      `SELECT player_name, game_id, side FROM picks WHERE week_id = $1 ORDER BY player_name ASC`,
-      [weekId]
-    );
+    const [gamesRes, picksRes, currentWeekId] = await Promise.all([
+      pool.query("SELECT * FROM games WHERE week_id = $1 ORDER BY kickoff ASC", [weekId]),
+      pool.query(
+        `SELECT player_name, game_id, side FROM picks WHERE week_id = $1 ORDER BY player_name ASC`,
+        [weekId]
+      ),
+      computeCurrentWeekId(pool),
+    ]);
 
     const picksByPlayer = new Map();
     picksRes.rows.forEach((row) => {
@@ -108,7 +106,7 @@ router.get("/:weekId", async (req, res, next) => {
         label: week.label,
         season: week.season,
         espnWeek: week.espn_week,
-        isCurrent: week.is_current,
+        isCurrent: week.id === currentWeekId,
       },
       games: gamesRes.rows.map(gameRowToJson),
       picks: Array.from(picksByPlayer.values()),
@@ -253,28 +251,6 @@ router.delete("/:weekId/games/:gameId", requireAdmin, async (req, res, next) => 
       req.params.gameId,
       req.params.weekId,
     ]);
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post("/:weekId/activate", requireAdmin, async (req, res, next) => {
-  try {
-    const { weekId } = req.params;
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query("UPDATE weeks SET is_current = false");
-      const result = await client.query("UPDATE weeks SET is_current = true WHERE id = $1", [weekId]);
-      if (!result.rowCount) throw Object.assign(new Error("Week not found."), { status: 404 });
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
     res.json({ ok: true });
   } catch (err) {
     next(err);

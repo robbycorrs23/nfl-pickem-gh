@@ -14,8 +14,11 @@ scoreboard.
 
 ## How it works (for friends)
 
-1. Enter your name.
-2. Pick a winner for each game (big, tappable team buttons).
+1. Tap your name (or add yourself if you're new — no typing required after
+   the first time).
+2. Pick a winner for each game (big, tappable team buttons). A "Picking
+   for" dropdown lets you switch weeks — pick ahead for next week, or
+   revisit an old one — the app defaults to whichever week is current.
 3. Once every game is picked, tap **Generate My Picks** — this immediately
    saves your picks to the scoreboard *and* gives you a clean,
    group-chat-ready message:
@@ -39,13 +42,30 @@ progress. The real source of truth is the server, though — if you make
 picks on one device, they'll still be there if you visit from another
 device under the same name.
 
-## Multi-week support
+## Multi-week support — fully automatic
 
 Weeks are first-class: each one has its own games, picks, and results in
-Postgres, and exactly one week is marked "current" at a time (that's the one
-`index.html` shows for picking). Activating a new week doesn't touch old
-weeks at all — they stay fully intact and browsable on the scoreboard via
-the week switcher tabs. See "Starting a new week" below.
+Postgres. Nobody has to create or activate anything:
+
+- **Weeks 1–18 are pre-populated automatically.** On boot and every 6 hours,
+  the API checks for any week that doesn't exist yet and fetches its real
+  schedule from ESPN (`server/src/weekAuto.js: ensureSeasonWeeks`). Re-running
+  is a no-op for weeks that already exist, so this is always safe.
+- **"Current" is computed, not stored.** A week counts as current until its
+  last game's kickoff + a 6-hour buffer has passed; the earliest week that
+  hasn't hit that point yet wins (`computeCurrentWeekId`). This is why the
+  app rolls over to the next week as soon as the previous one's games are
+  done — not when the next week's games start — so people have all week to
+  pick before Thursday night kickoff.
+- **Pick ahead, or look back.** `index.html` has a "Picking for" dropdown
+  (defaults to the computed current week) — nothing stops a friend from
+  picking Week 3 today if they want to. The scoreboard has an equivalent
+  week switcher for browsing any past week's results.
+
+None of this requires an admin to do anything. The commissioner's "create a
+new week" form in `admin.html` still exists as a manual fallback (postseason
+weeks, or fixing a matchup ESPN got wrong), but it's no longer part of the
+normal weekly flow.
 
 ## Scoreboard
 
@@ -72,13 +92,11 @@ results manually.
 
 ## Commissioner admin page
 
-`admin.html` (password-gated) is where you manage weeks, import picks, and
-mark results. Every action here writes straight to the database — there's no
-publish/wait step.
+`admin.html` (password-gated) is where you import picks and mark results.
+Every action here writes straight to the database — there's no publish/wait
+step. Weeks themselves are automatic (see above); the "Advanced: manually
+add/fix a week" form is a rarely-needed fallback, not a required step.
 
-- **Manage weeks** — activate whichever week friends should currently be
-  picking, or create a new one (id, label, season, NFL week number for
-  score sync, and its list of games).
 - **Import picks** — paste the exact "Generate My Picks" messages friends
   send in chat (handy if someone picks by texting instead of using the
   site); it parses each into a name + picks and saves immediately.
@@ -102,15 +120,14 @@ Everyone's existing admin session (a JWT cached in their browser) keeps
 working until it expires (30 days) or they hit "Lock commissioner page" —
 so rotate `ADMIN_SECRET` too if you need to invalidate sessions immediately.
 
-## Starting a new week
+## If you ever need to add a week manually
 
-1. Open `admin.html` → **Manage weeks** → **+ Create a new week**.
-2. Give it an id (e.g. `week2`), a label (`Week 2`), the season, the real
-   NFL week number (so ESPN auto-sync works), and add each game (teams +
-   kickoff).
-3. Hit **Create Week**, then find it in the weeks list and hit **Activate**.
-   `index.html` immediately starts showing the new week to friends; the
-   previous week stays exactly as it was, fully archived.
+Normal weeks need zero manual steps (see "Multi-week support" above). If you
+ever do need to add one by hand — postseason, or ESPN got a matchup wrong —
+open `admin.html` → **Weeks** → **Advanced: manually add/fix a week**, give
+it an id/label/season/NFL week number, hit **Auto-fill Games From ESPN** (or
+type games in manually), then **Create Week**. There's no activation step;
+which week is "current" is always computed from kickoff times.
 
 ## Project structure
 
@@ -126,12 +143,14 @@ js/scoreboard.js            Scoreboard rendering + week switcher
 js/admin.js                  Admin logic: auth, weeks, picks, results
 
 server/                Express + Postgres API, deployed separately (see below)
-  schema.sql            weeks / games / picks tables
-  src/index.js            App entry + ESPN auto-sync scheduler
-  src/routes/weeks.js       Week/game/pick/result endpoints
-  src/routes/admin.js        Admin login (issues a JWT)
-  src/espn.js               ESPN scoreboard fetch + matching logic
-  src/db.js, src/auth.js     Postgres pool, JWT middleware
+  schema.sql            weeks / games / picks / players tables
+  src/index.js            App entry + ESPN sync + week auto-provision timers
+  src/weekAuto.js           Auto-creates weeks 1-18 from ESPN; computes "current"
+  src/routes/weeks.js         Week/game/pick/result endpoints
+  src/routes/players.js        Roster endpoints
+  src/routes/admin.js           Admin login (issues a JWT)
+  src/espn.js                    ESPN scoreboard fetch + matching logic
+  src/db.js, src/auth.js          Postgres pool, JWT middleware
 ```
 
 ## Running the frontend locally

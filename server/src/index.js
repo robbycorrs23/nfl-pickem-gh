@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const { pool } = require("./db");
 const { syncAllPendingWeeks } = require("./espn");
+const { ensureSeasonWeeks } = require("./weekAuto");
 const weeksRouter = require("./routes/weeks");
 const adminRouter = require("./routes/admin");
 const playersRouter = require("./routes/players");
@@ -55,3 +56,22 @@ setInterval(() => {
 setTimeout(() => {
   syncAllPendingWeeks(pool).catch((err) => console.error("[espn] initial sync failed:", err));
 }, 10 * 1000);
+
+// Make sure weeks 1..NFL_WEEKS_TO_PROVISION exist (pulling each week's
+// schedule from ESPN the first time it's needed) — this is what lets the
+// pick'em page and its week dropdown show upcoming weeks with zero admin
+// button-clicking. Re-running is a no-op for weeks that already exist, so
+// this is safe to do on every boot and periodically thereafter (ESPN
+// sometimes hasn't published a far-future week yet, so retrying catches it
+// once it is).
+const SEASON = Number(process.env.NFL_SEASON) || new Date().getFullYear();
+const WEEKS_TO_PROVISION = Number(process.env.NFL_WEEKS_TO_PROVISION) || 18;
+const PROVISION_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function runEnsureSeasonWeeks() {
+  ensureSeasonWeeks(pool, { season: SEASON, throughWeek: WEEKS_TO_PROVISION }).catch((err) =>
+    console.error("[weekAuto] ensureSeasonWeeks failed:", err)
+  );
+}
+setTimeout(runEnsureSeasonWeeks, 5 * 1000);
+setInterval(runEnsureSeasonWeeks, PROVISION_INTERVAL_MS);
