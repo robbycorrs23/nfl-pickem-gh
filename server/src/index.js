@@ -5,6 +5,7 @@ const { pool } = require("./db");
 const { syncAllPendingWeeks } = require("./espn");
 const weeksRouter = require("./routes/weeks");
 const adminRouter = require("./routes/admin");
+const playersRouter = require("./routes/players");
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 app.use("/api/admin", adminRouter);
 app.use("/api/weeks", weeksRouter);
+app.use("/api/players", playersRouter);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

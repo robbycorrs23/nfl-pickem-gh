@@ -115,5 +115,9 @@ const Api = (function () {
         method: "DELETE",
         auth: true,
       }),
+
+    // Players (the league roster)
+    getPlayers: () => request("/players"),
+    deletePlayer: (name) => request(`/players/${encodeURIComponent(name)}`, { method: "DELETE", auth: true }),
   };
 })();

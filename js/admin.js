@@ -15,6 +15,7 @@
   const authError = document.getElementById("auth-error");
   const lockBtn = document.getElementById("lock-btn");
 
+  const playersListEl = document.getElementById("players-list");
   const weeksListEl = document.getElementById("weeks-list");
   const newWeekForm = document.getElementById("new-week-form");
   const newWeekGamesEl = document.getElementById("new-week-games");
@@ -55,6 +56,39 @@
     authGate.hidden = true;
     adminContent.hidden = false;
     loadWeeks();
+    loadPlayers();
+  }
+
+  /* ---------------------------------------------------------
+     Players roster
+     --------------------------------------------------------- */
+
+  async function loadPlayers() {
+    const players = await Api.getPlayers();
+    if (!players.length) {
+      playersListEl.innerHTML = `<li class="staged-picks-list__empty">No one's on the roster yet — it fills in automatically once someone picks.</li>`;
+      return;
+    }
+    playersListEl.innerHTML = players
+      .map(
+        (name) => `
+        <li class="staged-picks-list__item">
+          <span class="staged-picks-list__name">${escapeHtml(name)}</span>
+          <button class="link-btn" type="button" data-remove-player="${escapeHtml(name)}">Remove</button>
+        </li>
+      `
+      )
+      .join("");
+
+    playersListEl.querySelectorAll("[data-remove-player]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const name = btn.dataset.removePlayer;
+        const confirmed = window.confirm(`Remove ${name} from the roster? (Any picks they've already made are kept.)`);
+        if (!confirmed) return;
+        await Api.deletePlayer(name);
+        await loadPlayers();
+      });
+    });
   }
 
   authForm.addEventListener("submit", async (event) => {
@@ -340,6 +374,7 @@
         parsedPreview.innerHTML = "";
         pasteInput.value = "";
         await loadWorkingWeek();
+        await loadPlayers();
       } catch (err) {
         statusEl.textContent = `Failed: ${err.message}`;
         statusEl.className = "field-hint field-hint--warn";

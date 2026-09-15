@@ -41,3 +41,21 @@ CREATE TABLE IF NOT EXISTS picks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_picks_week_player ON picks(week_id, player_name_key);
+
+-- The league roster, persisted independently of any single week so it's
+-- available to render a "pick your name" list even on a brand new week
+-- with zero picks yet. Grows automatically the first time a new name
+-- submits picks (see POST /:weekId/picks) — no separate signup step.
+CREATE TABLE IF NOT EXISTS players (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  name_key   TEXT GENERATED ALWAYS AS (lower(btrim(name))) STORED UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One-time backfill: anyone who already has picks but isn't in the roster
+-- yet (i.e. everyone, the first time this migration runs) gets added.
+-- Safe to re-run.
+INSERT INTO players (name)
+SELECT DISTINCT player_name FROM picks
+ON CONFLICT (name_key) DO NOTHING;

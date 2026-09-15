@@ -154,6 +154,14 @@ router.post("/:weekId/picks", async (req, res, next) => {
           [weekId, name.trim(), gameId, side]
         );
       }
+      // Grow the roster automatically — first time this name appears,
+      // they're added; on repeat visits this just keeps their casing
+      // in sync with whatever they most recently typed.
+      await client.query(
+        `INSERT INTO players (name) VALUES ($1)
+         ON CONFLICT (name_key) DO UPDATE SET name = EXCLUDED.name`,
+        [name.trim()]
+      );
       await client.query("COMMIT");
     } catch (err) {
       await client.query("ROLLBACK");

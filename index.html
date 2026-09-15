@@ -54,10 +54,14 @@
     <section id="name-screen" class="screen" aria-labelledby="name-screen-heading" hidden>
       <div class="panel panel--centered">
         <p class="panel__kicker">Step 1</p>
-        <h2 id="name-screen-heading" class="panel__heading">What&rsquo;s your name?</h2>
-        <p class="panel__body">We&rsquo;ll use it to label your picks when you share them with the group.</p>
+        <h2 id="name-screen-heading" class="panel__heading">Who&rsquo;s picking?</h2>
+        <p class="panel__body" id="name-screen-intro">Tap your name, or add yourself if you're new here.</p>
 
-        <form id="name-form" class="name-form" novalidate>
+        <div id="player-picker" class="player-picker" role="group" aria-label="Choose your name"></div>
+
+        <button class="link-btn" id="show-new-name-btn" type="button">+ I&rsquo;m not on this list</button>
+
+        <form id="name-form" class="name-form" novalidate hidden>
           <label class="field-label" for="name-input">Your name</label>
           <input
             class="field-input"
@@ -74,6 +78,7 @@
           <button class="btn btn--primary btn--block" type="submit">
             Let&rsquo;s Go
           </button>
+          <button class="link-btn" id="cancel-new-name-btn" type="button">&larr; Back to the list</button>
         </form>
       </div>
     </section>

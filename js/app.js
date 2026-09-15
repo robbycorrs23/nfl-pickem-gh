@@ -29,6 +29,9 @@
   const picksWeekLabel = document.getElementById("picks-week-label");
   const syncBanner = document.getElementById("sync-banner");
 
+  const playerPicker = document.getElementById("player-picker");
+  const showNewNameBtn = document.getElementById("show-new-name-btn");
+  const cancelNewNameBtn = document.getElementById("cancel-new-name-btn");
   const nameForm = document.getElementById("name-form");
   const nameInput = document.getElementById("name-input");
   const nameError = document.getElementById("name-error");
@@ -59,6 +62,7 @@
   let games = []; // from the API
   let picks = {}; // { [gameId]: 'home' | 'away' }
   let playerName = "";
+  let knownPlayers = []; // roster names from the API, for the picker
 
   function storageKey(suffix) {
     return `nfl-pickem:${week.id}:${suffix}`;
@@ -230,9 +234,10 @@
         return;
       }
 
-      const detail = await Api.getWeek(current.id);
+      const [detail, players] = await Promise.all([Api.getWeek(current.id), Api.getPlayers()]);
       week = detail.week;
       games = detail.games;
+      knownPlayers = players;
 
       weekTitle.innerHTML = `${escapeHtml(week.label)}<span class="app-header__title-accent">.</span>`;
       picksWeekLabel.textContent = week.label;
@@ -258,6 +263,8 @@
         greetingName.textContent = playerName;
         showScreen("picks-screen");
       } else {
+        renderPlayerPicker();
+        showNamePickerView();
         showScreen("name-screen");
       }
     } catch (err) {
@@ -269,10 +276,88 @@
   retryBtn.addEventListener("click", boot);
 
   /* ---------------------------------------------------------
-     Name screen
+     Name screen: pick from the roster, or add a new name
      --------------------------------------------------------- */
 
-  nameForm.addEventListener("submit", (event) => {
+  function renderPlayerPicker() {
+    if (!knownPlayers.length) {
+      playerPicker.innerHTML = "";
+      return;
+    }
+    playerPicker.innerHTML = knownPlayers
+      .map(
+        (name) => `
+        <button type="button" class="player-option" data-player-name="${escapeHtml(name)}">
+          <span class="player-option__avatar" aria-hidden="true">${escapeHtml(name.trim()[0] || "?").toUpperCase()}</span>
+          <span>${escapeHtml(name)}</span>
+        </button>
+      `
+      )
+      .join("");
+
+    playerPicker.querySelectorAll("[data-player-name]").forEach((btn) => {
+      btn.addEventListener("click", () => selectPlayer(btn.dataset.playerName));
+    });
+  }
+
+  // Resets the name screen back to its default view (roster list + "not on
+  // this list" link, or straight to the form if there's no roster yet).
+  function showNamePickerView() {
+    const nameScreenIntro = document.getElementById("name-screen-intro");
+    if (knownPlayers.length) {
+      playerPicker.hidden = false;
+      showNewNameBtn.hidden = false;
+      nameForm.hidden = true;
+      nameScreenIntro.textContent = "Tap your name, or add yourself if you're new here.";
+    } else {
+      playerPicker.hidden = true;
+      showNewNameBtn.hidden = true;
+      nameForm.hidden = false;
+      nameScreenIntro.textContent = "No one's picked yet this week — be the first!";
+    }
+  }
+
+  async function selectPlayer(name) {
+    const isSameAsCurrentDraft = playerName && playerName.trim().toLowerCase() === name.trim().toLowerCase();
+    playerName = name;
+    saveDraftName();
+
+    if (!isSameAsCurrentDraft) {
+      // Switching to a different identity on this device (e.g. handing the
+      // phone to a friend, or picking from the roster after someone else
+      // used this browser) — load whatever's already on the server for
+      // them instead of carrying over the previous person's in-progress
+      // picks.
+      try {
+        const fresh = await Api.getWeek(week.id);
+        const existing = fresh.picks.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+        picks = existing ? { ...existing.picks } : {};
+      } catch (err) {
+        picks = {};
+      }
+      saveDraftPicks();
+    }
+
+    greetingName.textContent = playerName;
+    buildGamesList();
+    updateProgress();
+    showScreen("picks-screen");
+  }
+
+  showNewNameBtn.addEventListener("click", () => {
+    playerPicker.hidden = true;
+    showNewNameBtn.hidden = true;
+    nameForm.hidden = false;
+    nameInput.value = "";
+    window.requestAnimationFrame(() => nameInput.focus());
+  });
+
+  cancelNewNameBtn.addEventListener("click", () => {
+    nameError.hidden = true;
+    showNamePickerView();
+  });
+
+  nameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const value = nameInput.value.trim();
 
@@ -285,12 +370,7 @@
 
     nameError.hidden = true;
     nameInput.removeAttribute("aria-invalid");
-
-    playerName = value;
-    saveDraftName();
-    greetingName.textContent = playerName;
-    updateProgress();
-    showScreen("picks-screen");
+    await selectPlayer(value);
   });
 
   nameInput.addEventListener("input", () => {
@@ -301,9 +381,9 @@
   });
 
   editNameBtn.addEventListener("click", () => {
-    nameInput.value = playerName;
+    renderPlayerPicker();
+    showNamePickerView();
     showScreen("name-screen");
-    window.requestAnimationFrame(() => nameInput.focus());
   });
 
   /* ---------------------------------------------------------
@@ -442,8 +522,8 @@
     nameError.hidden = true;
     buildGamesList();
     updateProgress();
+    showNamePickerView();
     showScreen("name-screen");
-    window.requestAnimationFrame(() => nameInput.focus());
   });
 
   boot();

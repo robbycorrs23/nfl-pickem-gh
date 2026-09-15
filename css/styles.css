@@ -225,6 +225,68 @@ img, svg {
   font-size: 0.95rem;
 }
 
+/* ---------- Player picker (choose-your-name screen) ---------- */
+.player-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.player-picker__empty {
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.player-option {
+  appearance: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  min-height: 3.4rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.player-option:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+}
+
+.player-option:active {
+  transform: scale(0.98);
+}
+
+.player-option__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  min-width: 2.4rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+#show-new-name-btn {
+  display: block;
+  margin: 1rem auto 0;
+  text-align: center;
+}
+
 /* ---------- Name form ---------- */
 .name-form {
   margin-top: 1.5rem;
