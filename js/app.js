@@ -66,32 +66,43 @@
   let knownPlayers = []; // roster names from the API, for the picker
   let allWeeks = []; // every week that exists, for the "picking for" dropdown
 
-  function storageKey(suffix) {
-    return `nfl-pickem:${week.id}:${suffix}`;
+  // The player's identity is the same across every week, so it gets one
+  // global key. Picks are namespaced per week — switching weeks must only
+  // reload the picks half, never re-read (and thereby clobber) the name.
+  const NAME_STORAGE_KEY = "nfl-pickem:name";
+
+  function picksStorageKey() {
+    return `nfl-pickem:${week.id}:picks`;
   }
 
-  function loadDraft() {
+  function loadPlayerName() {
     try {
-      playerName = localStorage.getItem(storageKey("name")) || "";
-      const raw = localStorage.getItem(storageKey("picks"));
-      picks = raw ? JSON.parse(raw) : {};
+      playerName = localStorage.getItem(NAME_STORAGE_KEY) || "";
     } catch (err) {
       playerName = "";
-      picks = {};
     }
   }
 
-  function saveDraftName() {
+  function savePlayerName() {
     try {
-      localStorage.setItem(storageKey("name"), playerName);
+      localStorage.setItem(NAME_STORAGE_KEY, playerName);
     } catch (err) {
       /* ignore */
     }
   }
 
-  function saveDraftPicks() {
+  function loadPicksDraft() {
     try {
-      localStorage.setItem(storageKey("picks"), JSON.stringify(picks));
+      const raw = localStorage.getItem(picksStorageKey());
+      picks = raw ? JSON.parse(raw) : {};
+    } catch (err) {
+      picks = {};
+    }
+  }
+
+  function savePicksDraft() {
+    try {
+      localStorage.setItem(picksStorageKey(), JSON.stringify(picks));
     } catch (err) {
       /* ignore */
     }
@@ -268,7 +279,8 @@
       picksWeekLabel.textContent = week.label;
       renderWeekSelect();
 
-      loadDraft();
+      loadPlayerName();
+      loadPicksDraft();
 
       // If this device has no local draft yet, but the server already has
       // picks under this player's saved name (e.g. they picked on another
@@ -327,7 +339,7 @@
       weekTitle.innerHTML = `${escapeHtml(week.label)}<span class="app-header__title-accent">.</span>`;
       picksWeekLabel.textContent = week.label;
 
-      loadDraft(); // re-reads localStorage, now namespaced under the new week.id
+      loadPicksDraft(); // playerName is intentionally left untouched here
 
       if (playerName && !Object.keys(picks).length) {
         const existing = detail.picks.find(
@@ -393,7 +405,7 @@
   async function selectPlayer(name) {
     const isSameAsCurrentDraft = playerName && playerName.trim().toLowerCase() === name.trim().toLowerCase();
     playerName = name;
-    saveDraftName();
+    savePlayerName();
 
     if (!isSameAsCurrentDraft) {
       // Switching to a different identity on this device (e.g. handing the
@@ -408,7 +420,7 @@
       } catch (err) {
         picks = {};
       }
-      saveDraftPicks();
+      savePicksDraft();
     }
 
     greetingName.textContent = playerName;
@@ -472,7 +484,7 @@
 
     const gameId = card.dataset.gameId;
     picks[gameId] = input.value;
-    saveDraftPicks();
+    savePicksDraft();
     updateProgress();
   });
 
@@ -589,8 +601,8 @@
     if (!confirmed) return;
 
     try {
-      localStorage.removeItem(storageKey("name"));
-      localStorage.removeItem(storageKey("picks"));
+      localStorage.removeItem(NAME_STORAGE_KEY);
+      localStorage.removeItem(picksStorageKey());
     } catch (err) {
       /* ignore */
     }
