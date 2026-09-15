@@ -1,33 +1,12 @@
 /**
- * NFL Week 1 Pick'em — Commissioner (admin) page logic
- * Depends on GAMES (js/games.js) and League (js/league.js).
- *
- * IMPORTANT: this is a static site with no server. The password gate below
- * is a light deterrent for casual friends, NOT real security — the hash is
- * sitting right here in this file. Don't use it to protect anything
- * sensitive. The GitHub token you paste in is stored only in your own
- * browser's localStorage and is only ever sent to api.github.com.
+ * NFL Pick'em — Commissioner (admin) page logic.
+ * Every write here hits the API immediately (js/api.js) — there's no
+ * "publish" step anymore. We just refetch the working week after each
+ * change and re-render.
  */
 
 (function () {
   "use strict";
-
-  const REPO = "robbycorrs23/nfl-pickem-gh";
-  const FILE_PATH = "data/league-data.json";
-  const API_URL = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`;
-
-  // SHA-256 of the admin password. Generated once; see README for how to
-  // rotate it if you want a different password.
-  const ADMIN_PASSWORD_HASH =
-    "55e0c8b461a54a895322cbfa2c09e9d1117a2c5175efbf6b396fe03b3692c621";
-
-  const AUTH_SESSION_KEY = "nfl-pickem:admin-authed";
-  const TOKEN_STORAGE_KEY = "nfl-pickem:admin-gh-token";
-  const DRAFT_STORAGE_KEY = "nfl-pickem:admin-draft";
-
-  /* ---------------------------------------------------------
-     DOM references
-     --------------------------------------------------------- */
 
   const authGate = document.getElementById("auth-gate");
   const adminContent = document.getElementById("admin-content");
@@ -36,13 +15,13 @@
   const authError = document.getElementById("auth-error");
   const lockBtn = document.getElementById("lock-btn");
 
-  const draftBanner = document.getElementById("draft-banner");
-  const discardDraftBtn = document.getElementById("discard-draft-btn");
+  const weeksListEl = document.getElementById("weeks-list");
+  const newWeekForm = document.getElementById("new-week-form");
+  const newWeekGamesEl = document.getElementById("new-week-games");
+  const addGameRowBtn = document.getElementById("add-game-row-btn");
+  const newWeekStatus = document.getElementById("new-week-status");
 
-  const tokenInput = document.getElementById("token-input");
-  const saveTokenBtn = document.getElementById("save-token-btn");
-  const forgetTokenBtn = document.getElementById("forget-token-btn");
-  const tokenStatus = document.getElementById("token-status");
+  const workingWeekSelect = document.getElementById("working-week-select");
 
   const pasteInput = document.getElementById("paste-input");
   const parseBtn = document.getElementById("parse-btn");
@@ -51,174 +30,14 @@
   const stagedCountBadge = document.getElementById("staged-count-badge");
   const stagedPicksList = document.getElementById("staged-picks-list");
 
+  const syncNowBtn = document.getElementById("sync-now-btn");
+  const syncStatus = document.getElementById("sync-status");
   const resultsList = document.getElementById("results-list");
 
-  const publishBtn = document.getElementById("publish-btn");
-  const publishStatus = document.getElementById("publish-status");
-
-  /* ---------------------------------------------------------
-     Working state
-     --------------------------------------------------------- */
-
-  let adminState = { picks: [], results: {} };
-  let hasUnpublishedDraft = false;
-  let lastKnownSha = null; // sha of the file as last fetched, for conflict-free writes
-  let currentParsed = []; // pending parsed preview entries
-
-  function saveDraft() {
-    hasUnpublishedDraft = true;
-    try {
-      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(adminState));
-    } catch (err) {
-      /* ignore */
-    }
-    draftBanner.hidden = false;
-  }
-
-  function clearDraftFlag() {
-    hasUnpublishedDraft = false;
-    try {
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
-    } catch (err) {
-      /* ignore */
-    }
-    draftBanner.hidden = true;
-  }
-
-  async function initState() {
-    let draft = null;
-    try {
-      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (raw) draft = JSON.parse(raw);
-    } catch (err) {
-      draft = null;
-    }
-
-    if (draft && (draft.picks || draft.results)) {
-      adminState = { picks: draft.picks || [], results: draft.results || {} };
-      hasUnpublishedDraft = true;
-      draftBanner.hidden = false;
-    } else {
-      const live = await League.load();
-      adminState = { picks: live.picks, results: live.results };
-    }
-
-    renderStagedPicks();
-    renderResults();
-  }
-
-  /* ---------------------------------------------------------
-     Password gate
-     --------------------------------------------------------- */
-
-  async function sha256Hex(text) {
-    const encoded = new TextEncoder().encode(text);
-    const digest = await crypto.subtle.digest("SHA-256", encoded);
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  function unlockAdmin() {
-    authGate.hidden = true;
-    adminContent.hidden = false;
-    initState();
-    loadSavedToken();
-  }
-
-  authForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const value = passwordInput.value;
-    const hash = await sha256Hex(value);
-    if (hash === ADMIN_PASSWORD_HASH) {
-      authError.hidden = true;
-      try {
-        sessionStorage.setItem(AUTH_SESSION_KEY, "1");
-      } catch (err) {
-        /* ignore */
-      }
-      passwordInput.value = "";
-      unlockAdmin();
-    } else {
-      authError.hidden = false;
-      passwordInput.focus();
-      passwordInput.select();
-    }
-  });
-
-  lockBtn.addEventListener("click", () => {
-    try {
-      sessionStorage.removeItem(AUTH_SESSION_KEY);
-    } catch (err) {
-      /* ignore */
-    }
-    adminContent.hidden = true;
-    authGate.hidden = false;
-    passwordInput.focus();
-  });
-
-  /* ---------------------------------------------------------
-     Token management
-     --------------------------------------------------------- */
-
-  function getToken() {
-    try {
-      return localStorage.getItem(TOKEN_STORAGE_KEY) || "";
-    } catch (err) {
-      return "";
-    }
-  }
-
-  function loadSavedToken() {
-    const token = getToken();
-    tokenStatus.textContent = token
-      ? "Token saved on this device."
-      : "No token saved on this device.";
-  }
-
-  saveTokenBtn.addEventListener("click", () => {
-    const value = tokenInput.value.trim();
-    if (!value) {
-      tokenStatus.textContent = "Paste a token above first.";
-      return;
-    }
-    try {
-      localStorage.setItem(TOKEN_STORAGE_KEY, value);
-    } catch (err) {
-      /* ignore */
-    }
-    tokenInput.value = "";
-    tokenStatus.textContent = "Token saved on this device.";
-  });
-
-  forgetTokenBtn.addEventListener("click", () => {
-    try {
-      localStorage.removeItem(TOKEN_STORAGE_KEY);
-    } catch (err) {
-      /* ignore */
-    }
-    tokenStatus.textContent = "No token saved on this device.";
-  });
-
-  /* ---------------------------------------------------------
-     Draft banner
-     --------------------------------------------------------- */
-
-  discardDraftBtn.addEventListener("click", async () => {
-    const confirmed = window.confirm(
-      "Discard your unpublished local changes and reload the currently published picks and results?"
-    );
-    if (!confirmed) return;
-    clearDraftFlag();
-    const live = await League.load();
-    adminState = { picks: live.picks, results: live.results };
-    renderStagedPicks();
-    renderResults();
-  });
-
-  /* ---------------------------------------------------------
-     Import / parse picks
-     --------------------------------------------------------- */
+  let allWeeks = [];
+  let workingWeekId = null;
+  let workingDetail = { week: null, games: [], picks: [] };
+  let currentParsed = [];
 
   function escapeHtml(str) {
     return String(str)
@@ -227,6 +46,198 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+
+  /* ---------------------------------------------------------
+     Auth
+     --------------------------------------------------------- */
+
+  function unlockAdmin() {
+    authGate.hidden = true;
+    adminContent.hidden = false;
+    loadWeeks();
+  }
+
+  authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await Api.adminLogin(passwordInput.value);
+      authError.hidden = true;
+      passwordInput.value = "";
+      unlockAdmin();
+    } catch (err) {
+      authError.hidden = false;
+      passwordInput.focus();
+      passwordInput.select();
+    }
+  });
+
+  lockBtn.addEventListener("click", () => {
+    Api.logoutAdmin();
+    adminContent.hidden = true;
+    authGate.hidden = false;
+    passwordInput.focus();
+  });
+
+  /* ---------------------------------------------------------
+     Weeks
+     --------------------------------------------------------- */
+
+  async function loadWeeks() {
+    allWeeks = await Api.getWeeks();
+    renderWeeksList();
+
+    workingWeekSelect.innerHTML = allWeeks
+      .map((w) => `<option value="${w.id}">${escapeHtml(w.label)}${w.isCurrent ? " (current)" : ""}</option>`)
+      .join("");
+
+    const current = allWeeks.find((w) => w.isCurrent) || allWeeks[allWeeks.length - 1];
+    workingWeekId = current ? current.id : null;
+    workingWeekSelect.value = workingWeekId || "";
+
+    if (workingWeekId) await loadWorkingWeek();
+  }
+
+  function renderWeeksList() {
+    if (!allWeeks.length) {
+      weeksListEl.innerHTML = `<li class="staged-picks-list__empty">No weeks yet — create one below.</li>`;
+      return;
+    }
+    weeksListEl.innerHTML = allWeeks
+      .map(
+        (w) => `
+        <li class="staged-picks-list__item">
+          <span class="staged-picks-list__name">${escapeHtml(w.label)}</span>
+          <span class="staged-picks-list__count">${w.gameCount} games</span>
+          ${
+            w.isCurrent
+              ? `<span class="count-badge">current</span>`
+              : `<button class="link-btn" type="button" data-activate-week="${w.id}">Activate</button>`
+          }
+        </li>
+      `
+      )
+      .join("");
+
+    weeksListEl.querySelectorAll("[data-activate-week]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await Api.activateWeek(btn.dataset.activateWeek);
+        await loadWeeks();
+      });
+    });
+  }
+
+  workingWeekSelect.addEventListener("change", async () => {
+    workingWeekId = workingWeekSelect.value;
+    await loadWorkingWeek();
+  });
+
+  async function loadWorkingWeek() {
+    workingDetail = await Api.getWeek(workingWeekId);
+    renderStagedPicks();
+    renderResults();
+  }
+
+  /* ---------------------------------------------------------
+     Create a new week
+     --------------------------------------------------------- */
+
+  function gameRowMarkup(index) {
+    return `
+      <div class="parsed-preview__item" data-game-row="${index}">
+        <div class="inline-actions">
+          <div style="flex:1">
+            <label class="field-label">Away city</label>
+            <input class="field-input" data-field="awayCity" placeholder="Chicago" />
+          </div>
+          <div style="flex:1">
+            <label class="field-label">Away team</label>
+            <input class="field-input" data-field="awayName" placeholder="Bears" required />
+          </div>
+        </div>
+        <div class="inline-actions">
+          <div style="flex:1">
+            <label class="field-label">Home city</label>
+            <input class="field-input" data-field="homeCity" placeholder="Carolina" />
+          </div>
+          <div style="flex:1">
+            <label class="field-label">Home team</label>
+            <input class="field-input" data-field="homeName" placeholder="Panthers" required />
+          </div>
+        </div>
+        <label class="field-label">Kickoff</label>
+        <input class="field-input" type="datetime-local" data-field="kickoff" required />
+        <button type="button" class="link-btn" data-remove-row="${index}">Remove this game</button>
+      </div>
+    `;
+  }
+
+  let gameRowCount = 0;
+  function addGameRow() {
+    const div = document.createElement("div");
+    div.innerHTML = gameRowMarkup(gameRowCount);
+    newWeekGamesEl.appendChild(div.firstElementChild);
+    gameRowCount += 1;
+  }
+
+  addGameRowBtn.addEventListener("click", addGameRow);
+  // Start with one blank row.
+  addGameRow();
+
+  newWeekGamesEl.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest("[data-remove-row]");
+    if (!removeBtn) return;
+    removeBtn.closest("[data-game-row]").remove();
+  });
+
+  newWeekForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    newWeekStatus.textContent = "Creating…";
+    newWeekStatus.className = "field-hint";
+
+    const id = document.getElementById("week-id-input").value.trim();
+    const label = document.getElementById("week-label-input").value.trim();
+    const season = Number(document.getElementById("week-season-input").value);
+    const espnWeekVal = document.getElementById("week-espn-input").value;
+    const espnWeek = espnWeekVal ? Number(espnWeekVal) : null;
+
+    const rows = Array.from(newWeekGamesEl.querySelectorAll("[data-game-row]"));
+    const games = rows.map((row) => {
+      const get = (field) => row.querySelector(`[data-field="${field}"]`).value.trim();
+      const kickoffLocal = get("kickoff");
+      return {
+        awayCity: get("awayCity"),
+        awayName: get("awayName"),
+        homeCity: get("homeCity"),
+        homeName: get("homeName"),
+        // datetime-local has no timezone — treat as entered in the browser's
+        // local time and convert to an ISO string with offset.
+        kickoff: kickoffLocal ? new Date(kickoffLocal).toISOString() : null,
+      };
+    });
+
+    if (!id || !label || !games.length || games.some((g) => !g.awayName || !g.homeName || !g.kickoff)) {
+      newWeekStatus.textContent = "Fill in week id, label, and every game's teams + kickoff.";
+      newWeekStatus.className = "field-hint field-hint--warn";
+      return;
+    }
+
+    try {
+      await Api.createWeek({ id, label, season, espnWeek, games });
+      newWeekStatus.textContent = `Created "${label}" with ${games.length} games.`;
+      newWeekForm.reset();
+      newWeekGamesEl.innerHTML = "";
+      gameRowCount = 0;
+      addGameRow();
+      await loadWeeks();
+    } catch (err) {
+      newWeekStatus.textContent = err.message;
+      newWeekStatus.className = "field-hint field-hint--warn";
+    }
+  });
+
+  /* ---------------------------------------------------------
+     Import / parse picks
+     --------------------------------------------------------- */
 
   function renderParsedPreview() {
     if (!currentParsed.length) {
@@ -243,8 +254,8 @@
           <li class="parsed-preview__item">
             <label class="field-label" for="parsed-name-${i}">Name</label>
             <input class="field-input" id="parsed-name-${i}" data-parsed-index="${i}" type="text" value="${escapeHtml(entry.name)}" />
-            <p class="field-hint ${entry.parsedCount < GAMES.length ? "field-hint--warn" : ""}">
-              ${entry.parsedCount} / ${GAMES.length} games parsed${entry.parsedCount < GAMES.length ? " — double check the pasted text" : ""}
+            <p class="field-hint ${entry.parsedCount < workingDetail.games.length ? "field-hint--warn" : ""}">
+              ${entry.parsedCount} / ${workingDetail.games.length} games parsed${entry.parsedCount < workingDetail.games.length ? " — double check the pasted text" : ""}
             </p>
             <label class="checkbox-label">
               <input type="checkbox" data-parsed-include="${i}" checked />
@@ -255,7 +266,8 @@
           )
           .join("")}
       </ul>
-      <button class="btn btn--primary btn--block" id="confirm-add-btn" type="button">Add Selected to Staged Picks</button>
+      <button class="btn btn--primary btn--block" id="confirm-add-btn" type="button">Add Selected to Scoreboard</button>
+      <p id="add-parsed-status" class="field-hint" role="status" aria-live="polite"></p>
     `;
 
     parsedPreview.querySelectorAll("[data-parsed-index]").forEach((input) => {
@@ -265,22 +277,33 @@
       });
     });
 
-    document.getElementById("confirm-add-btn").addEventListener("click", () => {
+    document.getElementById("confirm-add-btn").addEventListener("click", async () => {
+      const statusEl = document.getElementById("add-parsed-status");
       const included = currentParsed.filter((_, i) => {
         const cb = parsedPreview.querySelector(`[data-parsed-include="${i}"]`);
         return cb ? cb.checked : true;
       });
-      addParsedEntriesToStaged(included);
-      currentParsed = [];
-      parsedPreview.innerHTML = "";
-      pasteInput.value = "";
+
+      statusEl.textContent = "Saving…";
+      try {
+        for (const entry of included) {
+          await Api.submitPicks(workingWeekId, entry.name.trim() || "Unnamed", entry.picks);
+        }
+        currentParsed = [];
+        parsedPreview.innerHTML = "";
+        pasteInput.value = "";
+        await loadWorkingWeek();
+      } catch (err) {
+        statusEl.textContent = `Failed: ${err.message}`;
+        statusEl.className = "field-hint field-hint--warn";
+      }
     });
   }
 
   parseBtn.addEventListener("click", () => {
     const raw = pasteInput.value;
     if (!raw.trim()) return;
-    currentParsed = League.parseMessages(raw);
+    currentParsed = League.parseMessages(raw, workingDetail.games);
     if (!currentParsed.length) {
       parsedPreview.innerHTML = `<p class="field-hint field-hint--warn">Couldn't find any "Team over Team" lines in that text. Make sure you pasted the message exactly as copied.</p>`;
       return;
@@ -288,35 +311,20 @@
     renderParsedPreview();
   });
 
-  function addParsedEntriesToStaged(entries) {
-    entries.forEach((entry) => {
-      const name = entry.name.trim() || "Unnamed";
-      const existingIndex = adminState.picks.findIndex(
-        (p) => p.name.trim().toLowerCase() === name.toLowerCase()
-      );
-      if (existingIndex >= 0) {
-        adminState.picks[existingIndex] = { name, picks: entry.picks };
-      } else {
-        adminState.picks.push({ name, picks: entry.picks });
-      }
-    });
-    saveDraft();
-    renderStagedPicks();
-  }
-
   /* ---------------------------------------------------------
-     Staged picks list
+     Submitted picks list
      --------------------------------------------------------- */
 
   function renderStagedPicks() {
-    stagedCountBadge.textContent = String(adminState.picks.length);
+    const picks = workingDetail.picks || [];
+    stagedCountBadge.textContent = String(picks.length);
 
-    if (!adminState.picks.length) {
-      stagedPicksList.innerHTML = `<li class="staged-picks-list__empty">No one added yet — paste picks above.</li>`;
+    if (!picks.length) {
+      stagedPicksList.innerHTML = `<li class="staged-picks-list__empty">No one has picked this week yet.</li>`;
       return;
     }
 
-    stagedPicksList.innerHTML = adminState.picks
+    stagedPicksList.innerHTML = picks
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((entry) => {
@@ -324,7 +332,7 @@
         return `
           <li class="staged-picks-list__item">
             <span class="staged-picks-list__name">${escapeHtml(entry.name)}</span>
-            <span class="staged-picks-list__count">${count}/${GAMES.length} picks</span>
+            <span class="staged-picks-list__count">${count}/${workingDetail.games.length} picks</span>
             <button class="link-btn staged-picks-list__remove" type="button" data-remove-name="${escapeHtml(entry.name)}">Remove</button>
           </li>
         `;
@@ -332,13 +340,12 @@
       .join("");
 
     stagedPicksList.querySelectorAll("[data-remove-name]").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         const name = btn.dataset.removeName;
-        const confirmed = window.confirm(`Remove ${name} from the staged picks list?`);
+        const confirmed = window.confirm(`Remove ${name}'s picks from the scoreboard?`);
         if (!confirmed) return;
-        adminState.picks = adminState.picks.filter((p) => p.name !== name);
-        saveDraft();
-        renderStagedPicks();
+        await Api.deletePicks(workingWeekId, name);
+        await loadWorkingWeek();
       });
     });
   }
@@ -365,149 +372,72 @@
   }
 
   function pickCountFor(gameId, side) {
-    return adminState.picks.filter((p) => p.picks && p.picks[gameId] === side).length;
+    return (workingDetail.picks || []).filter((p) => p.picks && p.picks[gameId] === side).length;
   }
 
   function renderResults() {
-    resultsList.innerHTML = GAMES.map((game) => {
-      const current = adminState.results[game.id];
-      const totalPicks = adminState.picks.length;
+    const games = workingDetail.games || [];
+    const totalPicks = (workingDetail.picks || []).length;
 
-      return `
-        <fieldset class="result-card" data-game-id="${game.id}">
-          <legend class="game-card__legend">
-            <span class="game-card__matchup">${escapeHtml(game.away.name)} <span class="game-card__at" aria-hidden="true">@</span> ${escapeHtml(game.home.name)}</span>
-            <span class="game-card__kickoff">${formatKickoff(game.kickoff)}</span>
-          </legend>
-          <div class="result-card__options">
-            <button type="button" class="result-option ${current === "away" ? "is-selected" : ""}" data-side="away" aria-pressed="${current === "away"}">
-              ${escapeHtml(game.away.name)}
-              ${totalPicks ? `<span class="result-option__hint">${pickCountFor(game.id, "away")}/${totalPicks} picked</span>` : ""}
-            </button>
-            <button type="button" class="result-option ${current === "home" ? "is-selected" : ""}" data-side="home" aria-pressed="${current === "home"}">
-              ${escapeHtml(game.home.name)}
-              ${totalPicks ? `<span class="result-option__hint">${pickCountFor(game.id, "home")}/${totalPicks} picked</span>` : ""}
-            </button>
-          </div>
-          ${current ? `<button type="button" class="link-btn" data-clear-game="${game.id}">Clear result</button>` : ""}
-        </fieldset>
-      `;
-    }).join("");
+    resultsList.innerHTML = games
+      .map((game) => {
+        const current = game.winnerSide;
+        return `
+          <fieldset class="result-card" data-game-id="${game.id}">
+            <legend class="game-card__legend">
+              <span class="game-card__matchup">${escapeHtml(game.away.name)} <span class="game-card__at" aria-hidden="true">@</span> ${escapeHtml(game.home.name)}</span>
+              <span class="game-card__kickoff">${formatKickoff(game.kickoff)}</span>
+            </legend>
+            <div class="result-card__options">
+              <button type="button" class="result-option ${current === "away" ? "is-selected" : ""}" data-side="away" aria-pressed="${current === "away"}">
+                ${escapeHtml(game.away.name)}
+                ${totalPicks ? `<span class="result-option__hint">${pickCountFor(game.id, "away")}/${totalPicks} picked</span>` : ""}
+              </button>
+              <button type="button" class="result-option ${current === "home" ? "is-selected" : ""}" data-side="home" aria-pressed="${current === "home"}">
+                ${escapeHtml(game.home.name)}
+                ${totalPicks ? `<span class="result-option__hint">${pickCountFor(game.id, "home")}/${totalPicks} picked</span>` : ""}
+              </button>
+            </div>
+            <p class="field-hint">${current ? `Source: ${game.resultSource === "espn" ? "auto-synced from ESPN" : "manually set"}` : "No result yet"}</p>
+            ${current ? `<button type="button" class="link-btn" data-clear-game="${game.id}">Clear result</button>` : ""}
+          </fieldset>
+        `;
+      })
+      .join("");
   }
 
-  resultsList.addEventListener("click", (event) => {
+  resultsList.addEventListener("click", async (event) => {
     const optionBtn = event.target.closest(".result-option");
     const clearBtn = event.target.closest("[data-clear-game]");
 
     if (optionBtn) {
       const card = optionBtn.closest(".result-card");
-      const gameId = card.dataset.gameId;
-      adminState.results[gameId] = optionBtn.dataset.side;
-      saveDraft();
-      renderResults();
+      await Api.setResult(workingWeekId, card.dataset.gameId, optionBtn.dataset.side);
+      await loadWorkingWeek();
       return;
     }
 
     if (clearBtn) {
-      const gameId = clearBtn.dataset.clearGame;
-      delete adminState.results[gameId];
-      saveDraft();
-      renderResults();
+      await Api.clearResult(workingWeekId, clearBtn.dataset.clearGame);
+      await loadWorkingWeek();
     }
   });
 
-  /* ---------------------------------------------------------
-     Publish to GitHub
-     --------------------------------------------------------- */
-
-  function b64EncodeUnicode(str) {
-    return btoa(
-      encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) =>
-        String.fromCharCode(parseInt(p1, 16))
-      )
-    );
-  }
-
-  function b64DecodeUnicode(str) {
-    return decodeURIComponent(
-      Array.prototype.map
-        .call(atob(str), (c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-  }
-
-  async function githubGetFile(token) {
-    const res = await fetch(API_URL, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-    if (res.status === 404) return { sha: null };
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.message || `GitHub read failed (${res.status})`);
-    }
-    const json = await res.json();
-    return { sha: json.sha };
-  }
-
-  async function githubPutFile(token, sha, dataObj) {
-    const content = b64EncodeUnicode(JSON.stringify(dataObj, null, 2) + "\n");
-    const body = {
-      message: `Update league data — ${new Date().toISOString()}`,
-      content,
-      branch: "main",
-    };
-    if (sha) body.sha = sha;
-
-    const res = await fetch(API_URL, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.message || `GitHub publish failed (${res.status})`);
-    }
-    return res.json();
-  }
-
-  function setPublishStatus(message, kind) {
-    publishStatus.textContent = message;
-    publishStatus.className = `publish-status ${kind ? `publish-status--${kind}` : ""}`;
-  }
-
-  publishBtn.addEventListener("click", async () => {
-    const token = getToken();
-    if (!token) {
-      setPublishStatus("Add and save a GitHub token above first.", "error");
-      return;
-    }
-
-    publishBtn.disabled = true;
-    setPublishStatus("Publishing…", "loading");
-
+  syncNowBtn.addEventListener("click", async () => {
+    syncStatus.textContent = "Syncing…";
+    syncStatus.className = "field-hint";
     try {
-      const { sha } = await githubGetFile(token);
-      await githubPutFile(token, sha, {
-        picks: adminState.picks,
-        results: adminState.results,
-      });
-      clearDraftFlag();
-      setPublishStatus(
-        "Published! The live scoreboard will update in about a minute once GitHub Pages rebuilds.",
-        "success"
-      );
+      const result = await Api.syncScores(workingWeekId);
+      if (result.skippedNoEspnWeek) {
+        syncStatus.textContent = "This week has no NFL week # set, so it can't auto-sync — mark results manually.";
+        syncStatus.className = "field-hint field-hint--warn";
+      } else {
+        syncStatus.textContent = `Checked ${result.checked} game(s), updated ${result.updated}.`;
+      }
+      await loadWorkingWeek();
     } catch (err) {
-      setPublishStatus(`Publish failed: ${err.message}`, "error");
-    } finally {
-      publishBtn.disabled = false;
+      syncStatus.textContent = `Sync failed: ${err.message}`;
+      syncStatus.className = "field-hint field-hint--warn";
     }
   });
 
@@ -515,20 +445,9 @@
      Init
      --------------------------------------------------------- */
 
-  function init() {
-    let authed = false;
-    try {
-      authed = sessionStorage.getItem(AUTH_SESSION_KEY) === "1";
-    } catch (err) {
-      authed = false;
-    }
-
-    if (authed) {
-      unlockAdmin();
-    } else {
-      passwordInput.focus();
-    }
+  if (Api.hasAdminToken()) {
+    unlockAdmin();
+  } else {
+    passwordInput.focus();
   }
-
-  init();
 })();

@@ -16,7 +16,7 @@
 
   <header class="app-header">
     <p class="app-header__eyebrow">NFL Pick&rsquo;em</p>
-    <h1 class="app-header__title">Week 1<span class="app-header__title-accent">.</span></h1>
+    <h1 class="app-header__title" id="week-title">Week 1<span class="app-header__title-accent">.</span></h1>
     <p class="app-header__subtitle">Pick a winner for every game. Copy your picks into the chat.</p>
     <nav class="top-nav" aria-label="Sections">
       <a class="top-nav__link" href="./scoreboard.html">View Scoreboard</a>
@@ -25,8 +25,33 @@
 
   <main id="main" class="app-main">
 
+    <!-- ============ LOADING / ERROR SCREEN ============ -->
+    <section id="loading-screen" class="screen" aria-live="polite">
+      <div class="panel panel--centered">
+        <p class="panel__body">Loading this week&rsquo;s games&hellip;</p>
+      </div>
+    </section>
+
+    <section id="error-screen" class="screen" role="alert" hidden>
+      <div class="panel panel--warning panel--centered">
+        <p class="panel__kicker">Something went wrong</p>
+        <h2 class="panel__heading">Couldn&rsquo;t load this week</h2>
+        <p class="panel__body" id="error-message">Check your connection and try again.</p>
+        <button class="btn btn--primary btn--block" id="retry-btn" type="button">Try Again</button>
+      </div>
+    </section>
+
+    <section id="no-active-week-screen" class="screen" hidden>
+      <div class="panel panel--centered">
+        <p class="panel__kicker">Nothing to pick yet</p>
+        <h2 class="panel__heading">No active week right now</h2>
+        <p class="panel__body">Ask the commissioner to set up this week&rsquo;s games.</p>
+        <a class="btn btn--ghost btn--block" href="./scoreboard.html">View past scoreboard</a>
+      </div>
+    </section>
+
     <!-- ============ NAME ENTRY SCREEN ============ -->
-    <section id="name-screen" class="screen" aria-labelledby="name-screen-heading">
+    <section id="name-screen" class="screen" aria-labelledby="name-screen-heading" hidden>
       <div class="panel panel--centered">
         <p class="panel__kicker">Step 1</p>
         <h2 id="name-screen-heading" class="panel__heading">What&rsquo;s your name?</h2>
@@ -60,10 +85,12 @@
           <p class="picks-header__hello">Hey, <span id="greeting-name">Friend</span> <span aria-hidden="true">👋</span></p>
           <button class="link-btn" id="edit-name-btn" type="button">Not you? Edit name</button>
         </div>
-        <h2 id="picks-screen-heading" class="picks-header__title">Make your Week 1 picks</h2>
+        <h2 id="picks-screen-heading" class="picks-header__title">Make your <span id="picks-week-label">Week 1</span> picks</h2>
       </div>
 
-      <ul id="games-list" class="games-list" aria-label="Week 1 games"></ul>
+      <div id="sync-banner" class="field-hint field-hint--warn" hidden></div>
+
+      <ul id="games-list" class="games-list" aria-label="This week's games"></ul>
 
     </section>
 
@@ -75,6 +102,8 @@
         <p class="panel__body">Copy this straight into the group chat.</p>
 
         <pre id="summary-output" class="summary-output" tabindex="0" aria-label="Your generated picks message"></pre>
+
+        <p id="submit-status" class="field-hint" role="status" aria-live="polite"></p>
 
         <div class="summary-actions">
           <button class="btn btn--primary btn--block" id="copy-btn" type="button">
@@ -120,7 +149,8 @@
 
 </div>
 
-<script src="./js/games.js"></script>
+<script src="./js/api.js"></script>
+<script src="./js/league.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>

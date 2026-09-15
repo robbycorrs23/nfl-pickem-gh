@@ -1,47 +1,23 @@
 /**
- * NFL Week 1 Pick'em — Shared League Data Helpers
- * -------------------------------------------------
- * Used by both scoreboard.html and admin.html. Depends on GAMES from
- * js/games.js being loaded first. Exposes a single `League` global with:
- *
- *   League.load()                 -> fetch data/league-data.json
- *   League.parseMessages(text)    -> turn pasted "🏈 NAME'S WEEK 1 PICKS"
- *                                     messages into { name, picks, parsedCount }
- *   League.scoreForPerson(picks, results) -> { correct, decided }
- *   League.DATA_PATH               -> path to the shared JSON data file
+ * NFL Week 1 Pick'em — Shared pure-JS helpers
+ * ---------------------------------------------
+ * Parsing pasted "generate my picks" messages back into structured data,
+ * and scoring a player's picks against decided results. No network calls
+ * here (see js/api.js for that) — everything below is pure functions so
+ * it's easy to unit test and reuse across scoreboard.js and admin.js.
  */
 
 const League = (function () {
   "use strict";
-
-  const DATA_PATH = "./data/league-data.json";
-
-  /* ---------------------------------------------------------
-     Loading published data
-     --------------------------------------------------------- */
-
-  async function load() {
-    try {
-      const res = await fetch(`${DATA_PATH}?t=${Date.now()}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      return {
-        picks: Array.isArray(data.picks) ? data.picks : [],
-        results: data.results && typeof data.results === "object" ? data.results : {},
-      };
-    } catch (err) {
-      return { picks: [], results: {}, loadError: true };
-    }
-  }
 
   /* ---------------------------------------------------------
      Parsing pasted "generate my picks" messages back into data
      --------------------------------------------------------- */
 
   // Build a lookup: "winner name|||loser name" (lowercase) -> { gameId, side }
-  function buildMatchupIndex() {
+  function buildMatchupIndex(games) {
     const index = new Map();
-    GAMES.forEach((game) => {
+    games.forEach((game) => {
       index.set(`${game.away.name.toLowerCase()}|||${game.home.name.toLowerCase()}`, {
         gameId: game.id,
         side: "away",
@@ -63,7 +39,7 @@ const League = (function () {
   }
 
   function extractName(headerLine) {
-    const match = headerLine.match(/🏈\s*(.+?)\s+WEEK\s*1\s*PICKS/i);
+    const match = headerLine.match(/🏈\s*(.+?)\s+WEEK\s*\d+\s*PICKS/i);
     if (!match) return "";
     let raw = match[1].trim();
     if (/['’]S$/i.test(raw)) {
@@ -85,12 +61,12 @@ const League = (function () {
 
   /**
    * Parses one or more pasted pick messages (the exact text friends copy
-   * out of the app) into structured entries. Messages don't need to be
-   * separated by anything special — a new "🏈 ... WEEK 1 PICKS" header
-   * line starts a new entry.
+   * out of the app) into structured entries, matched against the given
+   * week's games. Messages don't need to be separated by anything special
+   * — a new "🏈 ... WEEK N PICKS" header line starts a new entry.
    */
-  function parseMessages(rawText) {
-    const matchupIndex = buildMatchupIndex();
+  function parseMessages(rawText, games) {
+    const matchupIndex = buildMatchupIndex(games);
     const lines = rawText.split(/\r?\n/);
     const blocks = [];
     let current = null;
@@ -106,7 +82,6 @@ const League = (function () {
       }
 
       if (!current) {
-        // Picks pasted without a header line — stash under an unnamed block
         current = { name: "", picks: {} };
         blocks.push(current);
       }
@@ -130,22 +105,26 @@ const League = (function () {
      Scoring
      --------------------------------------------------------- */
 
-  function scoreForPerson(picks, results) {
-    const decidedGameIds = Object.keys(results || {});
+  // `games` is the array from the API (each with .id and .winnerSide).
+  function scoreForPerson(picks, games) {
+    const decided = games.filter((g) => g.winnerSide);
     let correct = 0;
-    decidedGameIds.forEach((gameId) => {
-      if (picks && picks[gameId] && picks[gameId] === results[gameId]) {
-        correct += 1;
-      }
+    decided.forEach((g) => {
+      if (picks && picks[g.id] === g.winnerSide) correct += 1;
     });
-    return { correct, decided: decidedGameIds.length };
+    return { correct, decided: decided.length };
+  }
+
+  function possessiveName(rawName) {
+    const upper = rawName.trim().toUpperCase();
+    if (!upper) return "MY";
+    return upper.endsWith("S") ? `${upper}'` : `${upper}'S`;
   }
 
   return {
-    DATA_PATH,
-    load,
     parseMessages,
     scoreForPerson,
     titleCase,
+    possessiveName,
   };
 })();

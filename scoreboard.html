@@ -26,20 +26,26 @@
   <main id="main" class="app-main">
 
     <div id="load-error" class="panel panel--warning" role="alert" hidden>
-      <p class="panel__body">Couldn&rsquo;t load the latest scoreboard data. Check your connection and reload.</p>
+      <p class="panel__body" id="load-error-message">Couldn&rsquo;t load the latest scoreboard data. Check your connection and reload.</p>
     </div>
+
+    <div id="loading-state" class="panel panel--centered">
+      <p class="panel__body">Loading scoreboard&hellip;</p>
+    </div>
+
+    <nav id="week-tabs" class="week-tabs" aria-label="Choose a week" hidden></nav>
 
     <div id="empty-state" class="panel panel--centered" hidden>
       <p class="panel__kicker">Nothing here yet</p>
       <h2 class="panel__heading">No picks submitted yet</h2>
-      <p class="panel__body">Ask your friends to make their picks and send them to the commissioner to add to the board.</p>
+      <p class="panel__body">Make your picks on the pick&rsquo;em page — they show up here right away.</p>
     </div>
 
     <section id="scoreboard-content" hidden aria-labelledby="standings-heading">
 
       <div class="status-banner">
-        <p id="games-final-count" class="status-banner__text">0 / 14 games final</p>
-        <div class="progress-track progress-track--static" role="progressbar" aria-valuemin="0" aria-valuemax="14" id="results-progress-track" aria-label="Games final">
+        <p id="games-final-count" class="status-banner__text">0 / 0 games final</p>
+        <div class="progress-track progress-track--static" role="progressbar" aria-valuemin="0" id="results-progress-track" aria-label="Games final">
           <div id="results-progress-fill" class="progress-track__fill" style="width: 0%"></div>
         </div>
       </div>
@@ -67,7 +73,7 @@
 
 </div>
 
-<script src="./js/games.js"></script>
+<script src="./js/api.js"></script>
 <script src="./js/league.js"></script>
 <script src="./js/scoreboard.js"></script>
 </body>

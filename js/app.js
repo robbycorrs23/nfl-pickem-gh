@@ -1,54 +1,33 @@
 /**
- * NFL Week 1 Pick'em — App Logic
+ * NFL Pick'em — App Logic
  * --------------------------------
- * No frameworks, no build step, no dependencies. Reads game data from
- * GAMES (js/games.js) and drives three screens: name entry, picks,
- * and the shareable summary. State (name + picks) is persisted to
- * localStorage so an accidental refresh never loses progress.
+ * Fetches the currently-active week + its games from the API (js/api.js),
+ * drives three screens (name, picks, summary), and submits picks straight
+ * to the server the moment "Generate My Picks" is tapped — no more
+ * publish-and-wait. localStorage is still used, but only as a per-device
+ * draft cache (namespaced by week id) so a refresh mid-pick never loses
+ * progress; the server is the real source of truth.
  */
 
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "nfl-pickem:week1-2026";
-  const TOTAL_GAMES = GAMES.length;
-
-  /* ---------------------------------------------------------
-     State
-     --------------------------------------------------------- */
-
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { name: "", picks: {} };
-      const parsed = JSON.parse(raw);
-      return {
-        name: typeof parsed.name === "string" ? parsed.name : "",
-        picks: parsed.picks && typeof parsed.picks === "object" ? parsed.picks : {},
-      };
-    } catch (err) {
-      return { name: "", picks: {} };
-    }
-  }
-
-  function saveState() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (err) {
-      /* localStorage unavailable (private mode / storage full) — app still
-         works for the current session, it just won't persist. */
-    }
-  }
-
-  let state = loadState();
-
   /* ---------------------------------------------------------
      DOM references
      --------------------------------------------------------- */
 
+  const loadingScreen = document.getElementById("loading-screen");
+  const errorScreen = document.getElementById("error-screen");
+  const errorMessage = document.getElementById("error-message");
+  const retryBtn = document.getElementById("retry-btn");
+  const noActiveWeekScreen = document.getElementById("no-active-week-screen");
   const nameScreen = document.getElementById("name-screen");
   const picksScreen = document.getElementById("picks-screen");
   const summaryScreen = document.getElementById("summary-screen");
+
+  const weekTitle = document.getElementById("week-title");
+  const picksWeekLabel = document.getElementById("picks-week-label");
+  const syncBanner = document.getElementById("sync-banner");
 
   const nameForm = document.getElementById("name-form");
   const nameInput = document.getElementById("name-input");
@@ -65,6 +44,7 @@
   const generateBtn = document.getElementById("generate-btn");
 
   const summaryOutput = document.getElementById("summary-output");
+  const submitStatus = document.getElementById("submit-status");
   const copyBtn = document.getElementById("copy-btn");
   const copyBtnLabel = document.getElementById("copy-btn-label");
   const copyConfirm = document.getElementById("copy-confirm");
@@ -72,7 +52,47 @@
   const resetBtn = document.getElementById("reset-btn");
 
   /* ---------------------------------------------------------
-     Formatting helpers
+     State
+     --------------------------------------------------------- */
+
+  let week = null; // { id, label, ... }
+  let games = []; // from the API
+  let picks = {}; // { [gameId]: 'home' | 'away' }
+  let playerName = "";
+
+  function storageKey(suffix) {
+    return `nfl-pickem:${week.id}:${suffix}`;
+  }
+
+  function loadDraft() {
+    try {
+      playerName = localStorage.getItem(storageKey("name")) || "";
+      const raw = localStorage.getItem(storageKey("picks"));
+      picks = raw ? JSON.parse(raw) : {};
+    } catch (err) {
+      playerName = "";
+      picks = {};
+    }
+  }
+
+  function saveDraftName() {
+    try {
+      localStorage.setItem(storageKey("name"), playerName);
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  function saveDraftPicks() {
+    try {
+      localStorage.setItem(storageKey("picks"), JSON.stringify(picks));
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
+  /* ---------------------------------------------------------
+     Formatting
      --------------------------------------------------------- */
 
   const kickoffFormatter = new Intl.DateTimeFormat("en-US", {
@@ -92,14 +112,8 @@
     }
   }
 
-  function possessiveName(rawName) {
-    const upper = rawName.trim().toUpperCase();
-    if (!upper) return "MY";
-    return upper.endsWith("S") ? `${upper}'` : `${upper}'S`;
-  }
-
   function escapeHtml(str) {
-    return str
+    return String(str)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -107,7 +121,7 @@
   }
 
   /* ---------------------------------------------------------
-     Build the games list (once)
+     Build the games list
      --------------------------------------------------------- */
 
   function teamOptionMarkup(radioName, side, team, isChecked) {
@@ -135,7 +149,7 @@
 
   function gameCardMarkup(game) {
     const radioName = `game-${game.id}`;
-    const pick = state.picks[game.id];
+    const pick = picks[game.id];
     return `
       <li>
         <fieldset class="game-card" data-game-id="${game.id}">
@@ -155,7 +169,7 @@
   }
 
   function buildGamesList() {
-    gamesList.innerHTML = GAMES.map(gameCardMarkup).join("");
+    gamesList.innerHTML = games.map(gameCardMarkup).join("");
   }
 
   /* ---------------------------------------------------------
@@ -163,32 +177,96 @@
      --------------------------------------------------------- */
 
   function pickedCount() {
-    return GAMES.reduce((count, game) => (state.picks[game.id] ? count + 1 : count), 0);
+    return games.reduce((count, game) => (picks[game.id] ? count + 1 : count), 0);
   }
 
   function updateProgress() {
+    const total = games.length;
     const count = pickedCount();
-    const pct = Math.round((count / TOTAL_GAMES) * 100);
+    const pct = total ? Math.round((count / total) * 100) : 0;
 
     progressFill.style.width = `${pct}%`;
+    progressTrack.setAttribute("aria-valuemax", String(total));
     progressTrack.setAttribute("aria-valuenow", String(count));
-    progressLabel.textContent = `${count} / ${TOTAL_GAMES} Picks Made`;
+    progressLabel.textContent = `${count} / ${total} Picks Made`;
 
-    const complete = count === TOTAL_GAMES;
+    const complete = total > 0 && count === total;
     generateBtn.disabled = !complete;
     generateBtn.setAttribute("aria-disabled", String(!complete));
     generateBtn.textContent = complete
       ? "Generate My Picks"
-      : `Generate My Picks (${TOTAL_GAMES - count} left)`;
+      : `Generate My Picks (${total - count} left)`;
   }
 
+  const SCREENS = [
+    "loading-screen",
+    "error-screen",
+    "no-active-week-screen",
+    "name-screen",
+    "picks-screen",
+    "summary-screen",
+  ];
+
   function showScreen(id) {
-    [nameScreen, picksScreen, summaryScreen].forEach((el) => {
-      el.hidden = el.id !== id;
+    SCREENS.forEach((screenId) => {
+      const el = document.getElementById(screenId);
+      if (el) el.hidden = screenId !== id;
     });
     progressRegion.hidden = id !== "picks-screen";
     window.scrollTo(0, 0);
   }
+
+  /* ---------------------------------------------------------
+     Boot: load the active week from the API
+     --------------------------------------------------------- */
+
+  async function boot() {
+    showScreen("loading-screen");
+    try {
+      const weeks = await Api.getWeeks();
+      const current = weeks.find((w) => w.isCurrent);
+      if (!current) {
+        showScreen("no-active-week-screen");
+        return;
+      }
+
+      const detail = await Api.getWeek(current.id);
+      week = detail.week;
+      games = detail.games;
+
+      weekTitle.innerHTML = `${escapeHtml(week.label)}<span class="app-header__title-accent">.</span>`;
+      picksWeekLabel.textContent = week.label;
+
+      loadDraft();
+
+      // If this device has no local draft yet, but the server already has
+      // picks under this player's saved name (e.g. they picked on another
+      // device, or cleared storage), hydrate from the server instead of
+      // starting blank.
+      if (playerName && !Object.keys(picks).length) {
+        const existing = detail.picks.find(
+          (p) => p.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+        );
+        if (existing) picks = { ...existing.picks };
+      }
+
+      buildGamesList();
+      updateProgress();
+
+      if (playerName) {
+        nameInput.value = playerName;
+        greetingName.textContent = playerName;
+        showScreen("picks-screen");
+      } else {
+        showScreen("name-screen");
+      }
+    } catch (err) {
+      errorMessage.textContent = err.message || "Check your connection and try again.";
+      showScreen("error-screen");
+    }
+  }
+
+  retryBtn.addEventListener("click", boot);
 
   /* ---------------------------------------------------------
      Name screen
@@ -208,9 +286,9 @@
     nameError.hidden = true;
     nameInput.removeAttribute("aria-invalid");
 
-    state.name = value;
-    saveState();
-    greetingName.textContent = state.name;
+    playerName = value;
+    saveDraftName();
+    greetingName.textContent = playerName;
     updateProgress();
     showScreen("picks-screen");
   });
@@ -223,7 +301,7 @@
   });
 
   editNameBtn.addEventListener("click", () => {
-    nameInput.value = state.name;
+    nameInput.value = playerName;
     showScreen("name-screen");
     window.requestAnimationFrame(() => nameInput.focus());
   });
@@ -240,15 +318,26 @@
     if (!card) return;
 
     const gameId = card.dataset.gameId;
-    state.picks[gameId] = input.value;
-    saveState();
+    picks[gameId] = input.value;
+    saveDraftPicks();
     updateProgress();
   });
 
-  generateBtn.addEventListener("click", () => {
-    if (pickedCount() < TOTAL_GAMES) return;
+  generateBtn.addEventListener("click", async () => {
+    if (pickedCount() < games.length) return;
+
     summaryOutput.textContent = buildSummaryText();
+    submitStatus.textContent = "Saving your picks…";
+    submitStatus.className = "field-hint";
     showScreen("summary-screen");
+
+    try {
+      await Api.submitPicks(week.id, playerName, picks);
+      submitStatus.textContent = "✓ Synced to the scoreboard.";
+    } catch (err) {
+      submitStatus.textContent = `Couldn't sync automatically (${err.message}). Copy your picks below and send them to the commissioner just in case.`;
+      submitStatus.className = "field-hint field-hint--warn";
+    }
   });
 
   /* ---------------------------------------------------------
@@ -256,15 +345,17 @@
      --------------------------------------------------------- */
 
   function buildSummaryText() {
-    const header = `🏈 ${possessiveName(state.name)} WEEK 1 PICKS`;
-    const lines = GAMES.map((game) => {
-      const pick = state.picks[game.id];
-      if (!pick) return null;
-      const winner = pick === "home" ? game.home.name : game.away.name;
-      const loser = pick === "home" ? game.away.name : game.home.name;
-      return `${winner} over ${loser}`;
-    }).filter(Boolean);
-    const footer = `🔒 LOCKED IN — ${lines.length}/${TOTAL_GAMES}`;
+    const header = `🏈 ${League.possessiveName(playerName)} ${week.label.toUpperCase()} PICKS`;
+    const lines = games
+      .map((game) => {
+        const pick = picks[game.id];
+        if (!pick) return null;
+        const winner = pick === "home" ? game.home.name : game.away.name;
+        const loser = pick === "home" ? game.away.name : game.home.name;
+        return `${winner} over ${loser}`;
+      })
+      .filter(Boolean);
+    const footer = `🔒 LOCKED IN — ${lines.length}/${games.length}`;
 
     return [header, "", ...lines, "", footer].join("\n");
   }
@@ -334,17 +425,19 @@
 
   resetBtn.addEventListener("click", () => {
     const confirmed = window.confirm(
-      "Start over? This clears your name and all 14 picks on this device."
+      "Start over? This clears your name and picks on this device (it won't remove anything already submitted to the scoreboard)."
     );
     if (!confirmed) return;
 
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey("name"));
+      localStorage.removeItem(storageKey("picks"));
     } catch (err) {
       /* ignore */
     }
 
-    state = { name: "", picks: {} };
+    playerName = "";
+    picks = {};
     nameInput.value = "";
     nameError.hidden = true;
     buildGamesList();
@@ -353,22 +446,5 @@
     window.requestAnimationFrame(() => nameInput.focus());
   });
 
-  /* ---------------------------------------------------------
-     Init
-     --------------------------------------------------------- */
-
-  function init() {
-    buildGamesList();
-    updateProgress();
-
-    if (state.name) {
-      nameInput.value = state.name;
-      greetingName.textContent = state.name;
-      showScreen("picks-screen");
-    } else {
-      showScreen("name-screen");
-    }
-  }
-
-  init();
+  boot();
 })();

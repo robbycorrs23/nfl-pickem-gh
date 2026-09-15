@@ -205,6 +205,15 @@ router.post("/:weekId/games", requireAdmin, async (req, res, next) => {
   }
 });
 
+router.delete("/:weekId", requireAdmin, async (req, res, next) => {
+  try {
+    await pool.query("DELETE FROM weeks WHERE id = $1", [req.params.weekId]);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete("/:weekId/games/:gameId", requireAdmin, async (req, res, next) => {
   try {
     await pool.query("DELETE FROM games WHERE id = $1 AND week_id = $2", [
