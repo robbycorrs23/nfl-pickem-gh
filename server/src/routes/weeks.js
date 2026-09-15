@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
-const { requireAdmin } = require("../auth");
+const { requireAdmin, optionalAdmin } = require("../auth");
 const { syncWeekScores, fetchWeekSchedule } = require("../espn");
 const { computeCurrentWeekId, slugify } = require("../weekAuto");
 
@@ -120,7 +120,11 @@ router.get("/:weekId", async (req, res, next) => {
 // Public write: a friend submitting their own picks
 // ---------------------------------------------------------------
 
-router.post("/:weekId/picks", async (req, res, next) => {
+// optionalAdmin: a valid admin token lets the commissioner's "import
+// pasted picks" tool bypass the kickoff lock for corrections. Regular
+// friend submissions from index.html carry no token, so they're always
+// subject to the lock below.
+router.post("/:weekId/picks", optionalAdmin, async (req, res, next) => {
   try {
     const { weekId } = req.params;
     const { name, picks } = req.body || {};
@@ -135,40 +139,67 @@ router.post("/:weekId/picks", async (req, res, next) => {
     const weekRes = await pool.query("SELECT id FROM weeks WHERE id = $1", [weekId]);
     if (!weekRes.rows.length) return res.status(404).json({ error: "Week not found." });
 
-    const entries = Object.entries(picks).filter(([, side]) => side === "home" || side === "away");
-    if (!entries.length) {
+    const requestedEntries = Object.entries(picks).filter(([, side]) => side === "home" || side === "away");
+    if (!requestedEntries.length) {
       return res.status(400).json({ error: "No valid picks provided." });
     }
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      for (const [gameId, side] of entries) {
-        await client.query(
-          `INSERT INTO picks (week_id, player_name, game_id, side)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (week_id, player_name_key, game_id)
-           DO UPDATE SET side = EXCLUDED.side, player_name = EXCLUDED.player_name, updated_at = now()`,
-          [weekId, name.trim(), gameId, side]
-        );
+    // Enforce the pick lock: once a game's kickoff has passed, its pick
+    // can no longer be changed via the public endpoint. Games that
+    // already started but were included anyway (e.g. a stale local
+    // draft) are silently dropped rather than failing the whole request,
+    // so a mix of still-open and now-locked games in one submission still
+    // saves whatever's still valid.
+    const gamesRes = await pool.query("SELECT id, kickoff FROM games WHERE week_id = $1", [weekId]);
+    const kickoffByGameId = new Map(gamesRes.rows.map((g) => [g.id, new Date(g.kickoff).getTime()]));
+    const now = Date.now();
+
+    const lockedGameIds = [];
+    const entries = requestedEntries.filter(([gameId]) => {
+      if (!kickoffByGameId.has(gameId)) return false; // not a real game in this week
+      if (!req.isAdmin && kickoffByGameId.get(gameId) <= now) {
+        lockedGameIds.push(gameId);
+        return false;
       }
-      // Grow the roster automatically — first time this name appears,
-      // they're added; on repeat visits this just keeps their casing
-      // in sync with whatever they most recently typed.
-      await client.query(
-        `INSERT INTO players (name) VALUES ($1)
-         ON CONFLICT (name_key) DO UPDATE SET name = EXCLUDED.name`,
-        [name.trim()]
-      );
-      await client.query("COMMIT");
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
+      return true;
+    });
+
+    if (entries.length) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        for (const [gameId, side] of entries) {
+          await client.query(
+            `INSERT INTO picks (week_id, player_name, game_id, side)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (week_id, player_name_key, game_id)
+             DO UPDATE SET side = EXCLUDED.side, player_name = EXCLUDED.player_name, updated_at = now()`,
+            [weekId, name.trim(), gameId, side]
+          );
+        }
+        // Grow the roster automatically — first time this name appears,
+        // they're added; on repeat visits this just keeps their casing
+        // in sync with whatever they most recently typed.
+        await client.query(
+          `INSERT INTO players (name) VALUES ($1)
+           ON CONFLICT (name_key) DO UPDATE SET name = EXCLUDED.name`,
+          [name.trim()]
+        );
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
     }
 
-    res.status(201).json({ ok: true, saved: entries.length });
+    res.status(201).json({
+      ok: true,
+      saved: entries.length,
+      locked: lockedGameIds.length,
+      lockedGameIds,
+    });
   } catch (err) {
     next(err);
   }

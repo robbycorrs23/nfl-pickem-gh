@@ -130,16 +130,21 @@
      Build the games list
      --------------------------------------------------------- */
 
-  function teamOptionMarkup(radioName, side, team, isChecked) {
+  function isGameLocked(game) {
+    return new Date(game.kickoff).getTime() <= Date.now();
+  }
+
+  function teamOptionMarkup(radioName, side, team, isChecked, isLocked) {
     const label = side === "away" ? "Away" : "Home";
     return `
-      <label class="team-option" data-side="${side}">
+      <label class="team-option ${isLocked ? "team-option--locked" : ""}" data-side="${side}">
         <input
           class="team-option__input"
           type="radio"
           name="${radioName}"
           value="${side}"
           ${isChecked ? "checked" : ""}
+          ${isLocked ? "disabled" : ""}
         />
         <span class="team-option__content">
           <span class="team-option__tag">${label}</span>
@@ -156,19 +161,23 @@
   function gameCardMarkup(game) {
     const radioName = `game-${game.id}`;
     const pick = picks[game.id];
+    const locked = isGameLocked(game);
     return `
       <li>
-        <fieldset class="game-card" data-game-id="${game.id}">
+        <fieldset class="game-card ${locked ? "game-card--locked" : ""}" data-game-id="${game.id}">
           <legend class="game-card__legend">
             <span class="game-card__matchup">
               ${escapeHtml(game.away.name)} <span class="game-card__at" aria-hidden="true">@</span> ${escapeHtml(game.home.name)}
             </span>
-            <span class="game-card__kickoff">${formatKickoff(game.kickoff)}</span>
+            <span class="game-card__kickoff">
+              ${locked ? `<span class="game-card__lock-badge">&#128274; Locked</span> &middot; ` : ""}${formatKickoff(game.kickoff)}
+            </span>
           </legend>
           <div class="game-card__teams">
-            ${teamOptionMarkup(radioName, "away", game.away, pick === "away")}
-            ${teamOptionMarkup(radioName, "home", game.home, pick === "home")}
+            ${teamOptionMarkup(radioName, "away", game.away, pick === "away", locked)}
+            ${teamOptionMarkup(radioName, "home", game.home, pick === "home", locked)}
           </div>
+          ${locked && !pick ? `<p class="field-hint">This game already started &mdash; no pick was made.</p>` : ""}
         </fieldset>
       </li>
     `;
@@ -186,6 +195,16 @@
     return games.reduce((count, game) => (picks[game.id] ? count + 1 : count), 0);
   }
 
+  // Games the user can still do something about. Locked-and-unpicked games
+  // (already started, never picked) aren't held against them — there's
+  // nothing left to do there, so they don't block "Generate My Picks".
+  function unlockedUnpickedCount() {
+    return games.reduce(
+      (count, game) => (!isGameLocked(game) && !picks[game.id] ? count + 1 : count),
+      0
+    );
+  }
+
   function updateProgress() {
     const total = games.length;
     const count = pickedCount();
@@ -196,12 +215,15 @@
     progressTrack.setAttribute("aria-valuenow", String(count));
     progressLabel.textContent = `${count} / ${total} Picks Made`;
 
-    const complete = total > 0 && count === total;
+    const remaining = unlockedUnpickedCount();
+    const complete = count > 0 && remaining === 0;
     generateBtn.disabled = !complete;
     generateBtn.setAttribute("aria-disabled", String(!complete));
     generateBtn.textContent = complete
       ? "Generate My Picks"
-      : `Generate My Picks (${total - count} left)`;
+      : remaining > 0
+        ? `Generate My Picks (${remaining} left)`
+        : "Generate My Picks";
   }
 
   const SCREENS = [
@@ -455,7 +477,7 @@
   });
 
   generateBtn.addEventListener("click", async () => {
-    if (pickedCount() < games.length) return;
+    if (pickedCount() === 0 || unlockedUnpickedCount() > 0) return;
 
     summaryOutput.textContent = buildSummaryText();
     submitStatus.textContent = "Saving your picks…";
@@ -463,8 +485,14 @@
     showScreen("summary-screen");
 
     try {
-      await Api.submitPicks(week.id, playerName, picks);
-      submitStatus.textContent = "✓ Synced to the scoreboard.";
+      const result = await Api.submitPicks(week.id, playerName, picks);
+      if (result.locked > 0 && result.saved === 0) {
+        submitStatus.textContent = "Those picks were already locked in — nothing new to save.";
+      } else if (result.locked > 0) {
+        submitStatus.textContent = `✓ Synced ${result.saved} pick${result.saved === 1 ? "" : "s"} to the scoreboard. (${result.locked} game${result.locked === 1 ? "" : "s"} already started, so ${result.locked === 1 ? "it wasn't" : "they weren't"} changed.)`;
+      } else {
+        submitStatus.textContent = "✓ Synced to the scoreboard.";
+      }
     } catch (err) {
       submitStatus.textContent = `Couldn't sync automatically (${err.message}). Copy your picks below and send them to the commissioner just in case.`;
       submitStatus.className = "field-hint field-hint--warn";

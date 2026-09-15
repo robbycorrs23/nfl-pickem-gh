@@ -357,7 +357,7 @@
       statusEl.textContent = "Saving…";
       try {
         for (const entry of included) {
-          await Api.submitPicks(workingWeekId, entry.name.trim() || "Unnamed", entry.picks);
+          await Api.adminSubmitPicks(workingWeekId, entry.name.trim() || "Unnamed", entry.picks);
         }
         currentParsed = [];
         parsedPreview.innerHTML = "";

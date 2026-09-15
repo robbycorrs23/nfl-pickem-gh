@@ -608,6 +608,27 @@ img, svg {
   color: var(--text-primary);
 }
 
+/* Locked state (kickoff has passed) — dimmed + not-allowed cursor, but the
+   checked/selected styling above still applies so a locked-in pick stays
+   visible, just not editable. */
+.team-option__input:disabled ~ .team-option__content {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.team-option--locked {
+  cursor: not-allowed;
+}
+
+.game-card--locked {
+  border-color: var(--border);
+}
+
+.game-card__lock-badge {
+  color: var(--gold);
+  font-weight: 700;
+}
+
 /* ---------- Sticky progress / CTA bar ---------- */
 .progress-region {
   position: fixed;

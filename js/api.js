@@ -69,9 +69,18 @@ const Api = (function () {
     getWeeks: () => request("/weeks"),
     getWeek: (weekId) => request(`/weeks/${encodeURIComponent(weekId)}`),
 
-    // Public write
+    // Public write — subject to the kickoff lock server-side.
     submitPicks: (weekId, name, picks) =>
       request(`/weeks/${encodeURIComponent(weekId)}/picks`, { method: "POST", body: { name, picks } }),
+
+    // Admin write — same endpoint, but the admin token lets it bypass the
+    // kickoff lock (for correcting picks someone texted in late, etc).
+    adminSubmitPicks: (weekId, name, picks) =>
+      request(`/weeks/${encodeURIComponent(weekId)}/picks`, {
+        method: "POST",
+        body: { name, picks },
+        auth: true,
+      }),
 
     // Admin auth
     adminLogin: async (password) => {
