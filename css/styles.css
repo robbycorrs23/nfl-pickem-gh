@@ -695,12 +695,12 @@ img, svg {
 }
 
 .btn--save {
-  flex: 1;
-  max-width: 10rem;
+  flex: 2;
 }
 
 .btn--generate {
-  flex: 2;
+  flex: 1;
+  max-width: 10rem;
 }
 
 /* ---------- Summary screen ---------- */

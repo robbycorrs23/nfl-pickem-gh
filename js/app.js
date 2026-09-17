@@ -1,12 +1,14 @@
 /**
  * NFL Pick'em — App Logic
  * --------------------------------
- * Fetches the currently-active week + its games from the API (js/api.js),
- * drives three screens (name, picks, summary), and submits picks straight
- * to the server the moment "Generate My Picks" is tapped — no more
- * publish-and-wait. localStorage is still used, but only as a per-device
- * draft cache (namespaced by week id) so a refresh mid-pick never loses
- * progress; the server is the real source of truth.
+ * Fetches the currently-active week + its games from the API (js/api.js)
+ * and drives three screens (name, picks, summary). The server is the real
+ * source of truth: "Save Picks" persists whatever's currently picked
+ * (partial is fine, no completion required) and is the primary action.
+ * "Share to Chat" is a secondary, optional bonus that also saves and then
+ * produces a copyable group-chat message. localStorage is only a
+ * per-device draft cache (namespaced by week id) so a refresh mid-pick
+ * never loses progress.
  */
 
 (function () {
@@ -208,16 +210,6 @@
     return games.reduce((count, game) => (picks[game.id] ? count + 1 : count), 0);
   }
 
-  // Games the user can still do something about. Locked-and-unpicked games
-  // (already started, never picked) aren't held against them — there's
-  // nothing left to do there, so they don't block "Generate My Picks".
-  function unlockedUnpickedCount() {
-    return games.reduce(
-      (count, game) => (!isGameLocked(game) && !picks[game.id] ? count + 1 : count),
-      0
-    );
-  }
-
   function updateProgress() {
     const total = games.length;
     const count = pickedCount();
@@ -228,21 +220,14 @@
     progressTrack.setAttribute("aria-valuenow", String(count));
     progressLabel.textContent = `${count} / ${total} Picks Made`;
 
-    const remaining = unlockedUnpickedCount();
-    const complete = count > 0 && remaining === 0;
-    generateBtn.disabled = !complete;
-    generateBtn.setAttribute("aria-disabled", String(!complete));
-    generateBtn.textContent = complete
-      ? "Generate My Picks"
-      : remaining > 0
-        ? `Generate My Picks (${remaining} left)`
-        : "Generate My Picks";
-
-    // Saving is independent of completion — you should be able to lock in
-    // tonight's pick now and fill in Sunday's games later without losing
-    // anything in between.
-    saveBtn.disabled = count === 0;
-    saveBtn.setAttribute("aria-disabled", String(count === 0));
+    // The app itself is the source of truth now — saving (and sharing)
+    // never require finishing every game. Pick one, save it, come back
+    // later for the rest. Both actions just need at least one pick.
+    const hasAnyPicks = count > 0;
+    saveBtn.disabled = !hasAnyPicks;
+    saveBtn.setAttribute("aria-disabled", String(!hasAnyPicks));
+    generateBtn.disabled = !hasAnyPicks;
+    generateBtn.setAttribute("aria-disabled", String(!hasAnyPicks));
   }
 
   const SCREENS = [
@@ -527,7 +512,7 @@
   });
 
   generateBtn.addEventListener("click", async () => {
-    if (pickedCount() === 0 || unlockedUnpickedCount() > 0) return;
+    if (pickedCount() === 0) return;
 
     summaryOutput.textContent = buildSummaryText();
     submitStatus.textContent = "Saving your picks…";
@@ -557,7 +542,10 @@
         return `${winner} over ${loser}`;
       })
       .filter(Boolean);
-    const footer = `🔒 LOCKED IN — ${lines.length}/${games.length}`;
+    const footer =
+      lines.length === games.length
+        ? `🔒 LOCKED IN — ${lines.length}/${games.length}`
+        : `📝 ${lines.length}/${games.length} SO FAR — MORE COMING`;
 
     return [header, "", ...lines, "", footer].join("\n");
   }
