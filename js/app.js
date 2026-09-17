@@ -45,6 +45,8 @@
   const progressFill = document.getElementById("progress-fill");
   const progressTrack = document.getElementById("progress-track");
   const progressLabel = document.getElementById("progress-label");
+  const saveBtn = document.getElementById("save-btn");
+  const saveStatus = document.getElementById("save-status");
   const generateBtn = document.getElementById("generate-btn");
 
   const summaryOutput = document.getElementById("summary-output");
@@ -235,6 +237,12 @@
       : remaining > 0
         ? `Generate My Picks (${remaining} left)`
         : "Generate My Picks";
+
+    // Saving is independent of completion — you should be able to lock in
+    // tonight's pick now and fill in Sunday's games later without losing
+    // anything in between.
+    saveBtn.disabled = count === 0;
+    saveBtn.setAttribute("aria-disabled", String(count === 0));
   }
 
   const SCREENS = [
@@ -351,6 +359,7 @@
       buildGamesList();
       updateProgress();
       weekSelect.value = week.id;
+      saveStatus.textContent = "";
     } catch (err) {
       statusEl.textContent = `Couldn't switch weeks: ${err.message}`;
       statusEl.className = "field-hint field-hint--warn";
@@ -488,6 +497,35 @@
     updateProgress();
   });
 
+  // Shared by both the always-available Save button and Generate — saves
+  // whatever's currently in `picks` (partial is fine) and describes what
+  // actually happened, since some entries may have been dropped for games
+  // that started in between. `verb` lets each caller phrase it naturally
+  // ("Saved" vs "Synced").
+  async function persistPicksAndDescribe(verb) {
+    const result = await Api.submitPicks(week.id, playerName, picks);
+    if (result.locked > 0 && result.saved === 0) {
+      return "Those picks were already locked in — nothing new to save.";
+    }
+    const countPhrase = `${result.saved} pick${result.saved === 1 ? "" : "s"}`;
+    if (result.locked > 0) {
+      return `✓ ${verb} ${countPhrase} to the scoreboard. (${result.locked} game${result.locked === 1 ? "" : "s"} already started, so ${result.locked === 1 ? "it wasn't" : "they weren't"} changed.)`;
+    }
+    return `✓ ${verb} ${countPhrase} to the scoreboard.`;
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    if (pickedCount() === 0) return;
+    saveStatus.textContent = "Saving…";
+    saveStatus.className = "field-hint";
+    try {
+      saveStatus.textContent = await persistPicksAndDescribe("Saved");
+    } catch (err) {
+      saveStatus.textContent = `Couldn't save (${err.message}). Your picks are still here on this device — try again.`;
+      saveStatus.className = "field-hint field-hint--warn";
+    }
+  });
+
   generateBtn.addEventListener("click", async () => {
     if (pickedCount() === 0 || unlockedUnpickedCount() > 0) return;
 
@@ -497,14 +535,7 @@
     showScreen("summary-screen");
 
     try {
-      const result = await Api.submitPicks(week.id, playerName, picks);
-      if (result.locked > 0 && result.saved === 0) {
-        submitStatus.textContent = "Those picks were already locked in — nothing new to save.";
-      } else if (result.locked > 0) {
-        submitStatus.textContent = `✓ Synced ${result.saved} pick${result.saved === 1 ? "" : "s"} to the scoreboard. (${result.locked} game${result.locked === 1 ? "" : "s"} already started, so ${result.locked === 1 ? "it wasn't" : "they weren't"} changed.)`;
-      } else {
-        submitStatus.textContent = "✓ Synced to the scoreboard.";
-      }
+      submitStatus.textContent = await persistPicksAndDescribe("Synced");
     } catch (err) {
       submitStatus.textContent = `Couldn't sync automatically (${err.message}). Copy your picks below and send them to the commissioner just in case.`;
       submitStatus.className = "field-hint field-hint--warn";
@@ -611,6 +642,7 @@
     picks = {};
     nameInput.value = "";
     nameError.hidden = true;
+    saveStatus.textContent = "";
     buildGamesList();
     updateProgress();
     showNamePickerView();
