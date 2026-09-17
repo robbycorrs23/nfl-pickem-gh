@@ -180,14 +180,17 @@
     return `
       <li>
         <fieldset class="game-card ${locked ? "game-card--locked" : ""}" data-game-id="${game.id}">
-          <legend class="game-card__legend">
+          <legend class="visually-hidden">
+            ${escapeHtml(game.away.name)} at ${escapeHtml(game.home.name)}, ${locked ? "locked, " : ""}${formatKickoff(game.kickoff)}
+          </legend>
+          <div class="game-card__legend" aria-hidden="true">
             <span class="game-card__matchup">
               ${escapeHtml(game.away.name)} <span class="game-card__at" aria-hidden="true">@</span> ${escapeHtml(game.home.name)}
             </span>
             <span class="game-card__kickoff">
               ${locked ? `<span class="game-card__lock-badge">&#128274; Locked</span> &middot; ` : ""}${formatKickoff(game.kickoff)}
             </span>
-          </legend>
+          </div>
           <div class="game-card__teams">
             ${teamOptionMarkup(radioName, "away", game.away, pick === "away", locked)}
             ${teamOptionMarkup(radioName, "home", game.home, pick === "home", locked)}

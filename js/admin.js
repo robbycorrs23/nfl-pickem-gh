@@ -455,10 +455,11 @@
         const current = game.winnerSide;
         return `
           <fieldset class="result-card" data-game-id="${game.id}">
-            <legend class="game-card__legend">
+            <legend class="visually-hidden">${escapeHtml(game.away.name)} at ${escapeHtml(game.home.name)}, ${formatKickoff(game.kickoff)}</legend>
+            <div class="game-card__legend" aria-hidden="true">
               <span class="game-card__matchup">${escapeHtml(game.away.name)} <span class="game-card__at" aria-hidden="true">@</span> ${escapeHtml(game.home.name)}</span>
               <span class="game-card__kickoff">${formatKickoff(game.kickoff)}</span>
-            </legend>
+            </div>
             <div class="result-card__options">
               <button type="button" class="result-option ${current === "away" ? "is-selected" : ""}" data-side="away" aria-pressed="${current === "away"}">
                 ${escapeHtml(game.away.name)}
