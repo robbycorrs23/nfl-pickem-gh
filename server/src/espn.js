@@ -1,8 +1,12 @@
 /**
- * Auto-grading via ESPN's public scoreboard endpoint. Same endpoint/UA
- * trick already proven out by the `tuddybowl` project on this box
- * (site.api.espn.com blocks browser-style User-Agents but allows
- * curl-style ones). No API key required.
+ * Auto-grading now reads results from TuddyBowl's own read-only scores
+ * endpoint (see fetchScoresFromTuddybowl below) instead of calling ESPN
+ * itself - added 2026-09-19. TuddyBowl already polls ESPN for its own
+ * purposes; this avoids a third app (on top of TuddyBowl and, until
+ * recently, ffplayeralerts) independently hammering the same endpoint.
+ * fetchWeekSchedule() below still calls ESPN directly - that one's only
+ * ever triggered by an admin clicking "Auto-fill from ESPN", not a timer,
+ * so it doesn't have the same repeated-polling concern.
  *
  * We only ever UPDATE games already created by the commissioner (never
  * create games from ESPN data), and we never overwrite a manually-set
@@ -11,6 +15,30 @@
  */
 
 const ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard";
+const TUDDYBOWL_SCORES_URL = "https://tuddybowl.com/api/live-stats/scores";
+
+/**
+ * Fetch completed/in-progress game results from TuddyBowl's read-only
+ * scores endpoint. Returns the same shape extractEventResult() produces
+ * from ESPN directly, so syncWeekScores()'s matching logic is unchanged.
+ */
+async function fetchScoresFromTuddybowl() {
+  const res = await fetch(TUDDYBOWL_SCORES_URL, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`TuddyBowl scores request failed: HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.success || !Array.isArray(data.games)) {
+    throw new Error("TuddyBowl scores response missing games array");
+  }
+  return data.games.map((g) => ({
+    homeName: g.homeName,
+    awayName: g.awayName,
+    homeScore: g.homeScore,
+    awayScore: g.awayScore,
+    completed: Boolean(g.completed),
+  }));
+}
 
 async function fetchEspnScoreboard({ espnWeek, season, seasonType }) {
   const params = new URLSearchParams();
@@ -62,19 +90,14 @@ async function syncWeekScores(pool, week) {
   const pending = games.filter((g) => g.result_source !== "manual");
   if (!pending.length) return { updated: 0, checked: 0 };
 
-  let events;
+  let results;
   try {
-    events = await fetchEspnScoreboard({
-      espnWeek: week.espn_week,
-      season: week.season,
-      seasonType: week.espn_seasontype,
-    });
+    results = await fetchScoresFromTuddybowl();
   } catch (err) {
-    console.error(`[espn] scoreboard fetch failed for ${week.id}:`, err.message);
+    console.error(`[espn] TuddyBowl scores fetch failed for ${week.id}:`, err.message);
     return { updated: 0, checked: 0, error: err.message };
   }
 
-  const results = events.map(extractEventResult).filter(Boolean);
   let updated = 0;
 
   for (const game of pending) {
