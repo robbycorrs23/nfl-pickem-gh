@@ -19,9 +19,11 @@ scoreboard.
 2. Pick a winner for each game (big, tappable team buttons). A "Picking
    for" dropdown lets you switch weeks — pick ahead for next week, or
    revisit an old one — the app defaults to whichever week is current.
-3. Once every game is picked, tap **Generate My Picks** — this immediately
-   saves your picks to the scoreboard *and* gives you a clean,
-   group-chat-ready message:
+3. Tap **Save Picks** any time — it saves exactly what's currently picked,
+   partial is fine. Pick tonight's Thursday game now, save it, come back
+   Sunday for the rest; nothing requires finishing the whole week to count.
+4. Optionally, tap **Share to Chat** for a clean, group-chat-ready message
+   (this also saves, so it works even if you never hit Save):
 
    ```
    🏈 ROB'S WEEK 1 PICKS
@@ -33,8 +35,9 @@ scoreboard.
    🔒 LOCKED IN — 14/14
    ```
 
-4. Tap **Copy Picks** and paste it into the chat (purely for fun/bragging —
-   the scoreboard already has your picks either way).
+   Then tap **Copy Picks** and paste it into the chat if you want to — it's
+   purely for fun/bragging. The scoreboard already has your picks either
+   way; sharing to chat is never required.
 
 Your name and picks are cached in `localStorage` on your device as a draft
 (namespaced per week), so an accidental refresh mid-pick doesn't lose
@@ -97,7 +100,7 @@ Every action here writes straight to the database — there's no publish/wait
 step. Weeks themselves are automatic (see above); the "Advanced: manually
 add/fix a week" form is a rarely-needed fallback, not a required step.
 
-- **Import picks** — paste the exact "Generate My Picks" messages friends
+- **Import picks** — paste the exact "Share to Chat" messages friends
   send in chat (handy if someone picks by texting instead of using the
   site); it parses each into a name + picks and saves immediately.
   Re-pasting a message for an existing name overwrites their picks.

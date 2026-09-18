@@ -1,12 +1,14 @@
 /**
  * NFL Pick'em — App Logic
  * --------------------------------
- * Fetches the currently-active week + its games from the API (js/api.js),
- * drives three screens (name, picks, summary), and submits picks straight
- * to the server the moment "Generate My Picks" is tapped — no more
- * publish-and-wait. localStorage is still used, but only as a per-device
- * draft cache (namespaced by week id) so a refresh mid-pick never loses
- * progress; the server is the real source of truth.
+ * Fetches the currently-active week + its games from the API (js/api.js)
+ * and drives three screens (name, picks, summary). The server is the real
+ * source of truth: "Save Picks" persists whatever's currently picked
+ * (partial is fine, no completion required) and is the primary action.
+ * "Share to Chat" is a secondary, optional bonus that also saves and then
+ * produces a copyable group-chat message. localStorage is only a
+ * per-device draft cache (namespaced by week id) so a refresh mid-pick
+ * never loses progress.
  */
 
 (function () {
@@ -45,6 +47,8 @@
   const progressFill = document.getElementById("progress-fill");
   const progressTrack = document.getElementById("progress-track");
   const progressLabel = document.getElementById("progress-label");
+  const saveBtn = document.getElementById("save-btn");
+  const saveStatus = document.getElementById("save-status");
   const generateBtn = document.getElementById("generate-btn");
 
   const summaryOutput = document.getElementById("summary-output");
@@ -66,32 +70,43 @@
   let knownPlayers = []; // roster names from the API, for the picker
   let allWeeks = []; // every week that exists, for the "picking for" dropdown
 
-  function storageKey(suffix) {
-    return `nfl-pickem:${week.id}:${suffix}`;
+  // The player's identity is the same across every week, so it gets one
+  // global key. Picks are namespaced per week — switching weeks must only
+  // reload the picks half, never re-read (and thereby clobber) the name.
+  const NAME_STORAGE_KEY = "nfl-pickem:name";
+
+  function picksStorageKey() {
+    return `nfl-pickem:${week.id}:picks`;
   }
 
-  function loadDraft() {
+  function loadPlayerName() {
     try {
-      playerName = localStorage.getItem(storageKey("name")) || "";
-      const raw = localStorage.getItem(storageKey("picks"));
-      picks = raw ? JSON.parse(raw) : {};
+      playerName = localStorage.getItem(NAME_STORAGE_KEY) || "";
     } catch (err) {
       playerName = "";
-      picks = {};
     }
   }
 
-  function saveDraftName() {
+  function savePlayerName() {
     try {
-      localStorage.setItem(storageKey("name"), playerName);
+      localStorage.setItem(NAME_STORAGE_KEY, playerName);
     } catch (err) {
       /* ignore */
     }
   }
 
-  function saveDraftPicks() {
+  function loadPicksDraft() {
     try {
-      localStorage.setItem(storageKey("picks"), JSON.stringify(picks));
+      const raw = localStorage.getItem(picksStorageKey());
+      picks = raw ? JSON.parse(raw) : {};
+    } catch (err) {
+      picks = {};
+    }
+  }
+
+  function savePicksDraft() {
+    try {
+      localStorage.setItem(picksStorageKey(), JSON.stringify(picks));
     } catch (err) {
       /* ignore */
     }
@@ -165,14 +180,17 @@
     return `
       <li>
         <fieldset class="game-card ${locked ? "game-card--locked" : ""}" data-game-id="${game.id}">
-          <legend class="game-card__legend">
+          <legend class="visually-hidden">
+            ${escapeHtml(game.away.name)} at ${escapeHtml(game.home.name)}, ${locked ? "locked, " : ""}${formatKickoff(game.kickoff)}
+          </legend>
+          <div class="game-card__legend" aria-hidden="true">
             <span class="game-card__matchup">
               ${escapeHtml(game.away.name)} <span class="game-card__at" aria-hidden="true">@</span> ${escapeHtml(game.home.name)}
             </span>
             <span class="game-card__kickoff">
               ${locked ? `<span class="game-card__lock-badge">&#128274; Locked</span> &middot; ` : ""}${formatKickoff(game.kickoff)}
             </span>
-          </legend>
+          </div>
           <div class="game-card__teams">
             ${teamOptionMarkup(radioName, "away", game.away, pick === "away", locked)}
             ${teamOptionMarkup(radioName, "home", game.home, pick === "home", locked)}
@@ -195,16 +213,6 @@
     return games.reduce((count, game) => (picks[game.id] ? count + 1 : count), 0);
   }
 
-  // Games the user can still do something about. Locked-and-unpicked games
-  // (already started, never picked) aren't held against them — there's
-  // nothing left to do there, so they don't block "Generate My Picks".
-  function unlockedUnpickedCount() {
-    return games.reduce(
-      (count, game) => (!isGameLocked(game) && !picks[game.id] ? count + 1 : count),
-      0
-    );
-  }
-
   function updateProgress() {
     const total = games.length;
     const count = pickedCount();
@@ -215,15 +223,14 @@
     progressTrack.setAttribute("aria-valuenow", String(count));
     progressLabel.textContent = `${count} / ${total} Picks Made`;
 
-    const remaining = unlockedUnpickedCount();
-    const complete = count > 0 && remaining === 0;
-    generateBtn.disabled = !complete;
-    generateBtn.setAttribute("aria-disabled", String(!complete));
-    generateBtn.textContent = complete
-      ? "Generate My Picks"
-      : remaining > 0
-        ? `Generate My Picks (${remaining} left)`
-        : "Generate My Picks";
+    // The app itself is the source of truth now — saving (and sharing)
+    // never require finishing every game. Pick one, save it, come back
+    // later for the rest. Both actions just need at least one pick.
+    const hasAnyPicks = count > 0;
+    saveBtn.disabled = !hasAnyPicks;
+    saveBtn.setAttribute("aria-disabled", String(!hasAnyPicks));
+    generateBtn.disabled = !hasAnyPicks;
+    generateBtn.setAttribute("aria-disabled", String(!hasAnyPicks));
   }
 
   const SCREENS = [
@@ -268,7 +275,8 @@
       picksWeekLabel.textContent = week.label;
       renderWeekSelect();
 
-      loadDraft();
+      loadPlayerName();
+      loadPicksDraft();
 
       // If this device has no local draft yet, but the server already has
       // picks under this player's saved name (e.g. they picked on another
@@ -327,7 +335,7 @@
       weekTitle.innerHTML = `${escapeHtml(week.label)}<span class="app-header__title-accent">.</span>`;
       picksWeekLabel.textContent = week.label;
 
-      loadDraft(); // re-reads localStorage, now namespaced under the new week.id
+      loadPicksDraft(); // playerName is intentionally left untouched here
 
       if (playerName && !Object.keys(picks).length) {
         const existing = detail.picks.find(
@@ -339,6 +347,7 @@
       buildGamesList();
       updateProgress();
       weekSelect.value = week.id;
+      saveStatus.textContent = "";
     } catch (err) {
       statusEl.textContent = `Couldn't switch weeks: ${err.message}`;
       statusEl.className = "field-hint field-hint--warn";
@@ -393,7 +402,7 @@
   async function selectPlayer(name) {
     const isSameAsCurrentDraft = playerName && playerName.trim().toLowerCase() === name.trim().toLowerCase();
     playerName = name;
-    saveDraftName();
+    savePlayerName();
 
     if (!isSameAsCurrentDraft) {
       // Switching to a different identity on this device (e.g. handing the
@@ -408,7 +417,7 @@
       } catch (err) {
         picks = {};
       }
-      saveDraftPicks();
+      savePicksDraft();
     }
 
     greetingName.textContent = playerName;
@@ -472,12 +481,41 @@
 
     const gameId = card.dataset.gameId;
     picks[gameId] = input.value;
-    saveDraftPicks();
+    savePicksDraft();
     updateProgress();
   });
 
+  // Shared by both the always-available Save button and Generate — saves
+  // whatever's currently in `picks` (partial is fine) and describes what
+  // actually happened, since some entries may have been dropped for games
+  // that started in between. `verb` lets each caller phrase it naturally
+  // ("Saved" vs "Synced").
+  async function persistPicksAndDescribe(verb) {
+    const result = await Api.submitPicks(week.id, playerName, picks);
+    if (result.locked > 0 && result.saved === 0) {
+      return "Those picks were already locked in — nothing new to save.";
+    }
+    const countPhrase = `${result.saved} pick${result.saved === 1 ? "" : "s"}`;
+    if (result.locked > 0) {
+      return `✓ ${verb} ${countPhrase} to the scoreboard. (${result.locked} game${result.locked === 1 ? "" : "s"} already started, so ${result.locked === 1 ? "it wasn't" : "they weren't"} changed.)`;
+    }
+    return `✓ ${verb} ${countPhrase} to the scoreboard.`;
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    if (pickedCount() === 0) return;
+    saveStatus.textContent = "Saving…";
+    saveStatus.className = "field-hint";
+    try {
+      saveStatus.textContent = await persistPicksAndDescribe("Saved");
+    } catch (err) {
+      saveStatus.textContent = `Couldn't save (${err.message}). Your picks are still here on this device — try again.`;
+      saveStatus.className = "field-hint field-hint--warn";
+    }
+  });
+
   generateBtn.addEventListener("click", async () => {
-    if (pickedCount() === 0 || unlockedUnpickedCount() > 0) return;
+    if (pickedCount() === 0) return;
 
     summaryOutput.textContent = buildSummaryText();
     submitStatus.textContent = "Saving your picks…";
@@ -485,14 +523,7 @@
     showScreen("summary-screen");
 
     try {
-      const result = await Api.submitPicks(week.id, playerName, picks);
-      if (result.locked > 0 && result.saved === 0) {
-        submitStatus.textContent = "Those picks were already locked in — nothing new to save.";
-      } else if (result.locked > 0) {
-        submitStatus.textContent = `✓ Synced ${result.saved} pick${result.saved === 1 ? "" : "s"} to the scoreboard. (${result.locked} game${result.locked === 1 ? "" : "s"} already started, so ${result.locked === 1 ? "it wasn't" : "they weren't"} changed.)`;
-      } else {
-        submitStatus.textContent = "✓ Synced to the scoreboard.";
-      }
+      submitStatus.textContent = await persistPicksAndDescribe("Synced");
     } catch (err) {
       submitStatus.textContent = `Couldn't sync automatically (${err.message}). Copy your picks below and send them to the commissioner just in case.`;
       submitStatus.className = "field-hint field-hint--warn";
@@ -514,7 +545,10 @@
         return `${winner} over ${loser}`;
       })
       .filter(Boolean);
-    const footer = `🔒 LOCKED IN — ${lines.length}/${games.length}`;
+    const footer =
+      lines.length === games.length
+        ? `🔒 LOCKED IN — ${lines.length}/${games.length}`
+        : `📝 ${lines.length}/${games.length} SO FAR — MORE COMING`;
 
     return [header, "", ...lines, "", footer].join("\n");
   }
@@ -589,8 +623,8 @@
     if (!confirmed) return;
 
     try {
-      localStorage.removeItem(storageKey("name"));
-      localStorage.removeItem(storageKey("picks"));
+      localStorage.removeItem(NAME_STORAGE_KEY);
+      localStorage.removeItem(picksStorageKey());
     } catch (err) {
       /* ignore */
     }
@@ -599,6 +633,7 @@
     picks = {};
     nameInput.value = "";
     nameError.hidden = true;
+    saveStatus.textContent = "";
     buildGamesList();
     updateProgress();
     showNamePickerView();
