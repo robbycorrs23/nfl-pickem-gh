@@ -33,6 +33,23 @@
       <p class="panel__body">Loading scoreboard&hellip;</p>
     </div>
 
+    <div id="view-tabs" class="view-tabs" role="tablist" aria-label="Standings view" hidden>
+      <button type="button" role="tab" class="view-tab is-active" data-view="overall" aria-selected="true">Overall</button>
+      <button type="button" role="tab" class="view-tab" data-view="weekly" aria-selected="false">Week by Week</button>
+    </div>
+
+    <section id="overall-content" hidden aria-labelledby="overall-heading">
+      <h2 id="overall-heading" class="section-heading">Overall Standings</h2>
+      <p id="overall-summary" class="section-note"></p>
+      <ol id="overall-list" class="leaderboard-list"></ol>
+
+      <h2 class="section-heading section-heading--spaced">Correct Picks by Week</h2>
+      <div class="week-grid-wrap">
+        <table id="week-grid" class="week-grid"></table>
+      </div>
+      <p class="section-note">&#127942; marks the winner of a week once all its games are final.</p>
+    </section>
+
     <nav id="week-tabs" class="week-tabs" aria-label="Choose a week" hidden></nav>
 
     <div id="empty-state" class="panel panel--centered" hidden>

@@ -984,6 +984,105 @@ img, svg {
   color: var(--accent);
 }
 
+.view-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  padding: 0.25rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.view-tab {
+  appearance: none;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.view-tab.is-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.section-note {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.leaderboard-item__sub {
+  display: block;
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.week-grid-wrap {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.week-grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.week-grid th,
+.week-grid td {
+  padding: 0.6rem 0.7rem;
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.week-grid tbody tr:last-child td,
+.week-grid tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+.week-grid thead th {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--bg-elevated);
+}
+
+.week-grid th:first-child {
+  position: sticky;
+  left: 0;
+  text-align: left;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.week-grid__win {
+  color: var(--gold);
+  font-weight: 800;
+}
+
+.week-grid__empty {
+  color: var(--text-tertiary);
+}
+
 .status-banner {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
