@@ -33,6 +33,17 @@
   let currentView = "overall";
   let allWeekDetails = null; // cached [{ week, games, picks }] for the overall view
 
+  // Same localStorage key index.html uses to remember who you are — reused
+  // here (read-only) purely so the API can reveal your own not-yet-locked
+  // picks to you while keeping everyone else's hidden. See js/app.js.
+  function getViewerName() {
+    try {
+      return localStorage.getItem("nfl-pickem:name") || "";
+    } catch (err) {
+      return "";
+    }
+  }
+
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, "&amp;")
@@ -126,6 +137,19 @@
                 </li>
               `;
             }
+            // The API redacts anyone else's pick until this game locks (at
+            // kickoff) — see server/src/routes/weeks.js — so friends can't
+            // copy each other. Show that a pick exists without saying what
+            // it is.
+            if (pick === "hidden") {
+              return `
+                <li class="pick-list__item pick-list__item--hidden">
+                  <span class="pick-list__name">${escapeHtml(entry.name || "Unnamed")}</span>
+                  <span class="pick-list__pick">Picked <span class="pick-list__lock-icon" aria-hidden="true">&#128274;</span></span>
+                  <span class="pick-list__status-text">Locks at kickoff</span>
+                </li>
+              `;
+            }
             const pickedTeam = pick === "home" ? game.home.name : game.away.name;
             let statusClass = "pick-list__item--pending";
             let statusText = "Pending";
@@ -196,7 +220,7 @@
     if (allWeekDetails) return allWeekDetails;
     const details = await Promise.all(
       allWeeks.map(async (w) => {
-        const detail = await Api.getWeek(w.id);
+        const detail = await Api.getWeek(w.id, getViewerName());
         return { week: w, games: detail.games, picks: detail.picks };
       })
     );
@@ -363,7 +387,7 @@
 
     try {
       const weekId = selectedWeekId;
-      const detail = await Api.getWeek(weekId);
+      const detail = await Api.getWeek(weekId, getViewerName());
       if (currentView !== "weekly" || weekId !== selectedWeekId) return; // stale response
       loadingStateEl.hidden = true;
 

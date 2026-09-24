@@ -155,7 +155,7 @@
   });
 
   async function loadWorkingWeek() {
-    workingDetail = await Api.getWeek(workingWeekId);
+    workingDetail = await Api.adminGetWeek(workingWeekId);
     renderStagedPicks();
     renderResults();
   }

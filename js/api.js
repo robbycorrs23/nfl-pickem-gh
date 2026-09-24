@@ -67,7 +67,17 @@ const Api = (function () {
   return {
     // Public reads
     getWeeks: () => request("/weeks"),
-    getWeek: (weekId) => request(`/weeks/${encodeURIComponent(weekId)}`),
+    // viewerName: pass the caller's own player name so the API includes
+    // their own not-yet-locked picks alongside everyone's locked ones —
+    // everyone else's picks for a game stay redacted server-side until
+    // that game's kickoff passes. Omit it to see only locked picks.
+    getWeek: (weekId, viewerName) =>
+      request(
+        `/weeks/${encodeURIComponent(weekId)}${viewerName ? `?as=${encodeURIComponent(viewerName)}` : ""}`
+      ),
+    // Admin variant: the token lets the commissioner see every pick,
+    // locked or not (for corrections/imports).
+    adminGetWeek: (weekId) => request(`/weeks/${encodeURIComponent(weekId)}`, { auth: true }),
 
     // Public write — subject to the kickoff lock server-side.
     submitPicks: (weekId, name, picks) =>

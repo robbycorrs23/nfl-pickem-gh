@@ -1293,6 +1293,19 @@ img, svg {
   color: var(--text-tertiary);
 }
 
+/* A pick that's been made but is withheld until its game locks at kickoff
+   — keeps friends from seeing (and copying) each other's picks early. */
+.pick-list__item--hidden {
+  opacity: 0.7;
+  border-style: dashed;
+}
+.pick-list__item--hidden .pick-list__status-text {
+  color: var(--text-tertiary);
+}
+.pick-list__lock-icon {
+  font-size: 0.8em;
+}
+
 /* =========================================================
    Admin / Commissioner
    ========================================================= */

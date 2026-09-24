@@ -75,9 +75,16 @@ router.get("/espn-schedule", requireAdmin, async (req, res, next) => {
 });
 
 // Full data for one week: games + all submitted picks.
-router.get("/:weekId", async (req, res, next) => {
+//
+// optionalAdmin: the commissioner (with a token) always sees every pick,
+// for corrections/imports. Everyone else gets picks redacted per game
+// until that game locks (see below) — this is what keeps friends from
+// copying each other's picks before kickoff, both in the UI and in the
+// raw API response (not just something the frontend hides).
+router.get("/:weekId", optionalAdmin, async (req, res, next) => {
   try {
     const { weekId } = req.params;
+    const viewerKey = typeof req.query.as === "string" ? req.query.as.trim().toLowerCase() : "";
     const weekRes = await pool.query("SELECT * FROM weeks WHERE id = $1", [weekId]);
     if (!weekRes.rows.length) return res.status(404).json({ error: "Week not found." });
     const week = weekRes.rows[0];
@@ -91,13 +98,33 @@ router.get("/:weekId", async (req, res, next) => {
       computeCurrentWeekId(pool),
     ]);
 
+    // A game "locks" — and its picks become visible to everyone — once its
+    // kickoff has passed (or it already has a result, belt-and-suspenders
+    // for a manually-set early result).
+    const now = Date.now();
+    const lockedGameIds = new Set(
+      gamesRes.rows
+        .filter((g) => g.winner_side || new Date(g.kickoff).getTime() <= now)
+        .map((g) => g.id)
+    );
+
     const picksByPlayer = new Map();
     picksRes.rows.forEach((row) => {
       const key = row.player_name.trim().toLowerCase();
       if (!picksByPlayer.has(key)) {
         picksByPlayer.set(key, { name: row.player_name, picks: {} });
       }
-      picksByPlayer.get(key).picks[row.game_id] = row.side;
+      // Redact anyone else's pick on a game that hasn't locked yet, unless
+      // the caller identified themselves as that player (?as=) or is the
+      // commissioner. Player identity here is just a typed name (same as
+      // everywhere else in this app), so this guards against casual
+      // copying, not a determined impersonator — consistent with the rest
+      // of the app's trust model. A redacted pick still shows up as
+      // "hidden" rather than being dropped outright, so the UI can say
+      // "picked, locks at kickoff" instead of falsely implying no pick
+      // was made.
+      const visible = req.isAdmin || key === viewerKey || lockedGameIds.has(row.game_id);
+      picksByPlayer.get(key).picks[row.game_id] = visible ? row.side : "hidden";
     });
 
     res.json({

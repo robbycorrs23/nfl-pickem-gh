@@ -266,7 +266,13 @@
       allWeeks = weeks;
       const current = weeks.find((w) => w.isCurrent) || weeks[weeks.length - 1];
 
-      const [detail, players] = await Promise.all([Api.getWeek(current.id), Api.getPlayers()]);
+      // Loaded before the week fetch (not after, as previously) so it can
+      // be passed as the viewer identity — the API redacts everyone else's
+      // not-yet-locked picks, but still needs to know who "you" are to
+      // include your own.
+      loadPlayerName();
+
+      const [detail, players] = await Promise.all([Api.getWeek(current.id, playerName), Api.getPlayers()]);
       week = detail.week;
       games = detail.games;
       knownPlayers = players;
@@ -275,7 +281,6 @@
       picksWeekLabel.textContent = week.label;
       renderWeekSelect();
 
-      loadPlayerName();
       loadPicksDraft();
 
       // If this device has no local draft yet, but the server already has
@@ -328,7 +333,7 @@
     statusEl.textContent = "";
 
     try {
-      const detail = await Api.getWeek(weekId);
+      const detail = await Api.getWeek(weekId, playerName);
       week = detail.week;
       games = detail.games;
 
@@ -411,7 +416,7 @@
       // them instead of carrying over the previous person's in-progress
       // picks.
       try {
-        const fresh = await Api.getWeek(week.id);
+        const fresh = await Api.getWeek(week.id, name);
         const existing = fresh.picks.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
         picks = existing ? { ...existing.picks } : {};
       } catch (err) {
