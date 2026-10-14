@@ -153,6 +153,79 @@ async function fetchWeekSchedule({ espnWeek, season, seasonType }) {
 }
 
 /**
+ * Turns ESPN's odds block into the label shown on the pick card, e.g.
+ * "Seahawks -2.5" (favorite's team name + spread) or "Pick'em" for an
+ * even line. Returns null when ESPN hasn't posted a line yet.
+ */
+function formatSpread(competition) {
+  const odds = competition?.odds?.[0];
+  if (!odds) return null;
+  const spread = Number(odds.spread);
+  if (odds.spread != null && spread === 0) return "Pick'em";
+  const favorite = [odds.awayTeamOdds, odds.homeTeamOdds].find((t) => t?.favorite)?.team;
+  if (favorite?.name && Number.isFinite(spread)) return `${favorite.name} -${Math.abs(spread)}`;
+  return odds.details || null;
+}
+
+/**
+ * Refreshes the point spread on every game kicking off within the next
+ * 8 days (one ESPN call per affected week). A game's spread freezes at
+ * kickoff, so everyone sees the line that was up when picks locked. If
+ * ESPN has no line for a game, whatever we last stored is kept.
+ */
+async function syncUpcomingSpreads(pool) {
+  const { rows: weeks } = await pool.query(
+    `SELECT DISTINCT w.* FROM weeks w
+     JOIN games g ON g.week_id = w.id
+     WHERE w.espn_week IS NOT NULL
+       AND g.kickoff > now() AND g.kickoff < now() + interval '8 days'`
+  );
+
+  const summary = [];
+  for (const week of weeks) {
+    try {
+      const events = await fetchEspnScoreboard({
+        espnWeek: week.espn_week,
+        season: week.season,
+        seasonType: week.espn_seasontype,
+      });
+      const { rows: games } = await pool.query(
+        `SELECT id, away_name, home_name FROM games WHERE week_id = $1 AND kickoff > now()`,
+        [week.id]
+      );
+
+      let updated = 0;
+      for (const event of events) {
+        const competition = event?.competitions?.[0];
+        const competitors = competition?.competitors ?? [];
+        const home = competitors.find((c) => c.homeAway === "home")?.team?.name;
+        const away = competitors.find((c) => c.homeAway === "away")?.team?.name;
+        const spread = formatSpread(competition);
+        if (!home || !away || !spread) continue;
+
+        const game = games.find(
+          (g) =>
+            g.away_name.toLowerCase() === away.toLowerCase() &&
+            g.home_name.toLowerCase() === home.toLowerCase()
+        );
+        if (!game) continue;
+
+        await pool.query(`UPDATE games SET spread = $1, spread_updated_at = now() WHERE id = $2`, [
+          spread,
+          game.id,
+        ]);
+        updated += 1;
+      }
+      summary.push({ weekId: week.id, updated, checked: games.length });
+    } catch (err) {
+      console.error(`[espn] spread sync failed for ${week.id}:`, err.message);
+      summary.push({ weekId: week.id, updated: 0, error: err.message });
+    }
+  }
+  return summary;
+}
+
+/**
  * Runs syncWeekScores for every week that still has at least one
  * non-manually-decided game. Called on a timer and via the admin's
  * "Sync scores now" button.
@@ -172,4 +245,4 @@ async function syncAllPendingWeeks(pool) {
   return summary;
 }
 
-module.exports = { syncWeekScores, syncAllPendingWeeks, fetchWeekSchedule };
+module.exports = { syncWeekScores, syncAllPendingWeeks, syncUpcomingSpreads, fetchWeekSchedule };

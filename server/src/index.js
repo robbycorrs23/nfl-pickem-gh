@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { pool } = require("./db");
-const { syncAllPendingWeeks } = require("./espn");
+const { syncAllPendingWeeks, syncUpcomingSpreads } = require("./espn");
 const { ensureSeasonWeeks } = require("./weekAuto");
 const weeksRouter = require("./routes/weeks");
 const adminRouter = require("./routes/admin");
@@ -56,6 +56,15 @@ setInterval(() => {
 setTimeout(() => {
   syncAllPendingWeeks(pool).catch((err) => console.error("[espn] initial sync failed:", err));
 }, 10 * 1000);
+
+// Refresh point spreads for games in the next 8 days every 2 hours (lines
+// don't move fast enough to justify more ESPN calls than that).
+const SPREAD_INTERVAL_MS = 2 * 60 * 60 * 1000;
+function runSyncSpreads() {
+  syncUpcomingSpreads(pool).catch((err) => console.error("[espn] spread sync failed:", err));
+}
+setTimeout(runSyncSpreads, 15 * 1000);
+setInterval(runSyncSpreads, SPREAD_INTERVAL_MS);
 
 // Make sure weeks 1..NFL_WEEKS_TO_PROVISION exist (pulling each week's
 // schedule from ESPN the first time it's needed) — this is what lets the

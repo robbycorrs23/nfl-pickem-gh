@@ -12,6 +12,7 @@ function gameRowToJson(g) {
     away: { city: g.away_city, name: g.away_name },
     home: { city: g.home_city, name: g.home_name },
     kickoff: g.kickoff,
+    spread: g.spread,
     winnerSide: g.winner_side,
     resultSource: g.result_source,
   };

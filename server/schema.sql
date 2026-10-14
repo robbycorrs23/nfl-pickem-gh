@@ -32,6 +32,12 @@ CREATE TABLE IF NOT EXISTS games (
 
 CREATE INDEX IF NOT EXISTS idx_games_week ON games(week_id);
 
+-- Point spread shown on the pick card (display only, never affects
+-- grading), e.g. 'Seahawks -2.5'. Refreshed from ESPN every 2 hours until
+-- each game's kickoff - see syncUpcomingSpreads() in server/src/espn.js.
+ALTER TABLE games ADD COLUMN IF NOT EXISTS spread TEXT;
+ALTER TABLE games ADD COLUMN IF NOT EXISTS spread_updated_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS picks (
   id              SERIAL PRIMARY KEY,
   week_id         TEXT NOT NULL REFERENCES weeks(id) ON DELETE CASCADE,

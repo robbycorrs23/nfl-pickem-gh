@@ -181,11 +181,12 @@
       <li>
         <fieldset class="game-card ${locked ? "game-card--locked" : ""}" data-game-id="${game.id}">
           <legend class="visually-hidden">
-            ${escapeHtml(game.away.name)} at ${escapeHtml(game.home.name)}, ${locked ? "locked, " : ""}${formatKickoff(game.kickoff)}
+            ${escapeHtml(game.away.name)} at ${escapeHtml(game.home.name)}, ${locked ? "locked, " : ""}${formatKickoff(game.kickoff)}${game.spread ? `, spread ${escapeHtml(game.spread)}` : ""}
           </legend>
           <div class="game-card__legend" aria-hidden="true">
             <span class="game-card__matchup">
               ${escapeHtml(game.away.name)} <span class="game-card__at" aria-hidden="true">@</span> ${escapeHtml(game.home.name)}
+              ${game.spread ? `<span class="game-card__spread">${escapeHtml(game.spread)}</span>` : ""}
             </span>
             <span class="game-card__kickoff">
               ${locked ? `<span class="game-card__lock-badge">&#128274; Locked</span> &middot; ` : ""}${formatKickoff(game.kickoff)}
