@@ -1,0 +1,24 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via forced-command SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t ed25519 "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          # The server pulls, reinstalls/rebuilds only what changed, and restarts only affected processes.
+          # Its output and any failure reason are also in /var/log/deploy.log on the server.
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes deploy@${{ secrets.DEPLOY_HOST }} "deploy"
