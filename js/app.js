@@ -3,8 +3,8 @@
  * --------------------------------
  * Fetches the currently-active week + its games from the API (js/api.js)
  * and drives three screens (name, picks, summary). The server is the real
- * source of truth: "Save Picks" persists whatever's currently picked
- * (partial is fine, no completion required) and is the primary action.
+ * source of truth: every pick autosaves the moment it's tapped (partial
+ * is fine, no completion required), and changing a pick autosaves again.
  * "Share to Chat" is a secondary, optional bonus that also saves and then
  * produces a copyable group-chat message. localStorage is only a
  * per-device draft cache (namespaced by week id) so a refresh mid-pick
@@ -47,7 +47,6 @@
   const progressFill = document.getElementById("progress-fill");
   const progressTrack = document.getElementById("progress-track");
   const progressLabel = document.getElementById("progress-label");
-  const saveBtn = document.getElementById("save-btn");
   const saveStatus = document.getElementById("save-status");
   const generateBtn = document.getElementById("generate-btn");
 
@@ -224,12 +223,9 @@
     progressTrack.setAttribute("aria-valuenow", String(count));
     progressLabel.textContent = `${count} / ${total} Picks Made`;
 
-    // The app itself is the source of truth now — saving (and sharing)
-    // never require finishing every game. Pick one, save it, come back
-    // later for the rest. Both actions just need at least one pick.
+    // Sharing never requires finishing every game — it just needs at
+    // least one pick.
     const hasAnyPicks = count > 0;
-    saveBtn.disabled = !hasAnyPicks;
-    saveBtn.setAttribute("aria-disabled", String(!hasAnyPicks));
     generateBtn.disabled = !hasAnyPicks;
     generateBtn.setAttribute("aria-disabled", String(!hasAnyPicks));
   }
@@ -489,13 +485,12 @@
     picks[gameId] = input.value;
     savePicksDraft();
     updateProgress();
+    autosave(gameId);
   });
 
-  // Shared by both the always-available Save button and Generate — saves
-  // whatever's currently in `picks` (partial is fine) and describes what
-  // actually happened, since some entries may have been dropped for games
-  // that started in between. `verb` lets each caller phrase it naturally
-  // ("Saved" vs "Synced").
+  // Used by Generate — saves whatever's currently in `picks` (partial is
+  // fine) and describes what actually happened, since some entries may
+  // have been dropped for games that started in between.
   async function persistPicksAndDescribe(verb) {
     const result = await Api.submitPicks(week.id, playerName, picks);
     if (result.locked > 0 && result.saved === 0) {
@@ -508,17 +503,52 @@
     return `✓ ${verb} ${countPhrase} to the scoreboard.`;
   }
 
-  saveBtn.addEventListener("click", async () => {
-    if (pickedCount() === 0) return;
+  // Every tap saves the full current `picks` (not just the tapped game),
+  // so a pick that failed to save earlier gets retried on the next tap.
+  // Saves run one at a time: taps that land mid-request just flag that
+  // another round is needed, so fast pick changes can't race each other
+  // and leave an older choice as the last write on the server.
+  let autosaveInFlight = false;
+  let autosaveQueued = false;
+  let autosaveLastGameId = null;
+  let autosaveRetryTimeout = null;
+
+  async function autosave(gameId) {
+    autosaveLastGameId = gameId;
+    if (autosaveInFlight) {
+      autosaveQueued = true;
+      return;
+    }
+    autosaveInFlight = true;
+    window.clearTimeout(autosaveRetryTimeout);
     saveStatus.textContent = "Saving…";
     saveStatus.className = "field-hint";
     try {
-      saveStatus.textContent = await persistPicksAndDescribe("Saved");
+      let result;
+      do {
+        autosaveQueued = false;
+        result = await Api.submitPicks(week.id, playerName, picks);
+      } while (autosaveQueued);
+
+      // Earlier picks on already-started games ride along in `picks` and
+      // get skipped by the server every time — only worth mentioning when
+      // the game just tapped is one of them (kickoff passed while the page
+      // sat open).
+      if (result.lockedGameIds && result.lockedGameIds.includes(autosaveLastGameId)) {
+        saveStatus.textContent = "That game already kicked off, so that pick couldn't be changed.";
+        saveStatus.className = "field-hint field-hint--warn";
+      } else {
+        saveStatus.textContent = "✓ Saved";
+      }
     } catch (err) {
-      saveStatus.textContent = `Couldn't save (${err.message}). Your picks are still here on this device — try again.`;
+      saveStatus.textContent = `Couldn't save (${err.message}). Your picks are still on this device — retrying…`;
       saveStatus.className = "field-hint field-hint--warn";
+      window.clearTimeout(autosaveRetryTimeout);
+      autosaveRetryTimeout = window.setTimeout(() => autosave(autosaveLastGameId), 10000);
+    } finally {
+      autosaveInFlight = false;
     }
-  });
+  }
 
   generateBtn.addEventListener("click", async () => {
     if (pickedCount() === 0) return;
@@ -635,6 +665,7 @@
       /* ignore */
     }
 
+    window.clearTimeout(autosaveRetryTimeout);
     playerName = "";
     picks = {};
     nameInput.value = "";

@@ -703,13 +703,8 @@ img, svg {
   margin-top: 0.5rem;
 }
 
-.btn--save {
-  flex: 2;
-}
-
 .btn--generate {
   flex: 1;
-  max-width: 10rem;
 }
 
 /* ---------- Summary screen ---------- */

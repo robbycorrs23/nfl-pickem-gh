@@ -19,11 +19,10 @@ scoreboard.
 2. Pick a winner for each game (big, tappable team buttons). A "Picking
    for" dropdown lets you switch weeks — pick ahead for next week, or
    revisit an old one — the app defaults to whichever week is current.
-3. Tap **Save Picks** any time — it saves exactly what's currently picked,
-   partial is fine. Pick tonight's Thursday game now, save it, come back
-   Sunday for the rest; nothing requires finishing the whole week to count.
-4. Optionally, tap **Share to Chat** for a clean, group-chat-ready message
-   (this also saves, so it works even if you never hit Save):
+3. Every tap saves automatically — no Save button. Change a pick and the
+   new one saves too. Partial is fine: pick tonight's Thursday game now,
+   come back Sunday for the rest; nothing requires finishing the week.
+4. Optionally, tap **Share to Chat** for a clean, group-chat-ready message:
 
    ```
    🏈 ROB'S WEEK 1 PICKS
